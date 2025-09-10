@@ -40,6 +40,8 @@ int main() {
             randomNums[i] = WEXITSTATUS(gotNum);
         }
     }
+
+    printf("Current Process ID: %d\n", getpid());
     // print the numbers in the randomNums array
     printf("\n");
     printRandomArray(randomNums);
