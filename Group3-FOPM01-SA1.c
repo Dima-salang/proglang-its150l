@@ -33,7 +33,6 @@ int main() {
 
     // child process
     if (pid == 0) {
-        printf("Child process\n");
 
         // open the FIFO file for reading
         fd = open(FIFO_NAME, O_RDONLY);
@@ -59,7 +58,6 @@ int main() {
     } 
     // parent process
     else {
-        printf("Parent process\n");
 
         // open the FIFO file for writing
         fd = open(FIFO_NAME, O_WRONLY);
