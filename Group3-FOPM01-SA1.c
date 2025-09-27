@@ -36,8 +36,11 @@ int main() {
 
         // open the FIFO file for reading
         fd = open(FIFO_NAME, O_RDONLY);
-        read(fd, buffer, sizeof(buffer)-1);
-        printf("Child process received: %s\n", buffer);
+        int readBytes = read(fd, buffer, sizeof(buffer)-1);
+        if (readBytes > 0) {
+            buffer[readBytes] = '\0';
+            printf("Child process received: %s\n", buffer);
+        }
 
         sleep(1);
 
@@ -73,8 +76,11 @@ int main() {
 
         // open the FIFO file for reading
         fd = open(FIFO_NAME, O_RDONLY);
-        read(fd, buffer, sizeof(buffer)-1);
-        printf("Parent process received: %s\n", buffer);
+        int readBytes = read(fd, buffer, sizeof(buffer)-1);
+        if (readBytes > 0) {
+            buffer[readBytes] = '\0';
+            printf("Parent process received: %s\n", buffer);
+        }
 
 
         close(fd);
