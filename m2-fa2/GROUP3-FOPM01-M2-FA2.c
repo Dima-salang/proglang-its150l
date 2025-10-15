@@ -37,7 +37,7 @@ int main() {
     printf("Enter the number of processes: ");
     scanf("%d", &arr_len);
 
-    // initialize the processes array with initial length
+    // initialize the processes array
     struct process *processes = malloc(sizeof(struct process) * arr_len);
 
     // get user input for fcfs
