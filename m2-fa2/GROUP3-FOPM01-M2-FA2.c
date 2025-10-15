@@ -176,6 +176,11 @@ void draw_gantt_chart(struct process processes[], int arr_len, int sum_burst_tim
     int buffer_time = 5;
 
     printf("\nGantt Chart\n");
+
+    // print legend
+    printf("\nLegend:\n");
+    printf("PID: CPU is processing\n");
+    printf("* : CPU is idle\n");
     int current_time = 1;
     while (current_time <= sum_burst_time+buffer_time) {
         // check if there is a process that arrives at current time
