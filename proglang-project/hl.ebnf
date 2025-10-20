@@ -1,0 +1,24 @@
+program = { statement } ;
+
+statement = assignment | declaration | expression | output | ifStmt ;
+
+declaration = identifier, ":", type ;
+assignment = identifier, ":", "=", expression, ";" ;
+output = "output", "<", "<", expression ;
+
+ifStmt = "if", "(", condition, ")", block ;
+block = newline, indent, { statement }, dedent ;
+
+
+condition = comparison ;
+comparison = expression, ("==" | "!=" | ">" | "<"), expression ;
+
+
+expression = term, { ("+" | "-") term } ;
+term = number | identifier | "(" expression ")" ;
+
+identifier = [a-zA-Z_][a-zA-Z0-9_]* ;
+number = digit, { digit } ;
+digit = [0-9] ;
+
+
