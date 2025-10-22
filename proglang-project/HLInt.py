@@ -19,13 +19,20 @@ class HLInt:
             self.run_file(self.args[1])
 
     def run_file(self, filename):
-        self.scan_file(filename)
+        try:
+            tokens = self.scan_file(filename)
+            ast = self.parse(tokens)
+            print(ast)
+        except Exception as e:
+            print(e)
 
     def scan_file(self, filename):
         with open(filename, "r") as f:
             self.clean_source(f.readlines())
-            scanner = Scanner(f.read())
+            scanner = Scanner(filename)
             scanner.scan()
+            scanner.print_tokens()
+            return scanner.tokens
 
     def clean_source(self, source):
         # remove newlines and spaces
@@ -48,8 +55,9 @@ class HLInt:
         with open("NOSPACES.txt", "w") as f:
             f.writelines(cleaned_lines)
 
-    def scan_source(self, filename):
-        tokens = []
+    def parse(self, tokens):
+        parser = Parser(tokens)
+        return parser.parse()
 
     def error(self, message):
         print(message)
@@ -62,23 +70,86 @@ class Scanner:
         self.start_idx = 0
         self.current_idx = 0
         self.line = 1
+        self.has_error = False
+
+        # indentation
+        self.indent_level = 0
+        self.indent_stack = [0]
+        self.is_at_start_line = True
+    
+    def scan_file(self, filename):
+        with open(filename, "r") as f:
+            self.source = f.read()
         
     def scan(self):
+        self.scan_file(self.source)
         while not self.is_at_end():
-            self.start_idx = self.current_idx
-            self.scan_token()
+            # handle the indentation problem
+            if self.is_at_start_line:
+                self.handle_indentation()
+            
+            if not self.is_at_end():
+                self.start_idx = self.current_idx
+                self.scan_token()
+
+        self.add_token("EOF")
+
+    def handle_indentation(self):
+        current_indent = 0
+        self.is_at_start_line = False
+        while self.next_char() == " ":
+            self.advance_char()
+            current_indent += 1
+
+        last_indent = self.indent_stack[-1]
+
+        if self.next_char() == "\n":
+            self.is_at_start_line = True
+            return
+
+
+        # we indent
+        if current_indent > last_indent:
+            self.indent_stack.append(current_indent)
+            self.tokens.append(Token("INDENT", "", None, self.line))
+        # there is a dedent that occured
+        elif current_indent < last_indent:
+            while self.indent_stack[-1] > current_indent:
+                self.indent_stack.pop()
+                self.tokens.append(Token("DEDENT", "", None, self.line))
+
+            if self.indent_stack[-1] != current_indent:
+                self.error("Indentation error")
+        
 
     def scan_token(self):
+        # since we are scanning tokens, we are not at the start of line
+        self.is_at_start_line = False
+
+        if self.next_char() == " ":
+            # do nothing since it is just whitespace
+            self.advance_char()
+            return
+            
         character = self.advance_char()
         match character:
             case "+":
                 self.add_token("PLUS")
             case "-":
                 self.add_token("MINUS")
+            case "*":
+                self.add_token("STAR")
+            case "/":
+                self.add_token("SLASH")
             case "!":
                 self.add_token("BANG_EQUAL" if self.is_next("=") else "BANG")
             case "<":
-                self.add_token("LESS_EQUAL" if self.is_next("=") else "LESS")
+                if self.is_next("="):
+                    self.add_token("LESS_EQUAL")
+                elif self.is_next("<"):
+                    self.add_token("PRINT_OP")
+                else:
+                    self.add_token("LESS")
             case ">":
                 self.add_token("GREATER_EQUAL" if self.is_next("=") else "GREATER")
             case "=":
@@ -94,15 +165,14 @@ class Scanner:
             case "\n":
                 self.line += 1
                 self.add_token("NEWLINE")
-            case "\t":
-                self.add_token("INDENT")
-            case "\r":
-                self.add_token("DEDENT")
+                self.is_at_start_line = True
             case '"':
                 self.add_string()
             case _:
                 if character.isdigit():
                     self.add_number()
+                elif character.isalpha():
+                    self.add_identifier()
                 else:
                     self.error(f"Unexpected character: {character}")
 
@@ -151,11 +221,30 @@ class Scanner:
                 self.advance_char()
         self.add_token("NUMBER", float(self.source[self.start_idx:self.current_idx]))
 
-
+    def add_identifier(self):
+        while self.next_char().isalpha() and not self.is_at_end():
+            self.advance_char()
+        text = self.source[self.start_idx:self.current_idx]
+        if text in RESERVED_WORDS:
+            self.add_token(RESERVED_WORDS[text])
+        else:
+            self.add_token("IDENTIFIER", text)
 
     def next_char(self, offset=0):
         if self.is_at_end(): return "\0"
         return self.source[self.current_idx + offset]
+
+    def print_tokens(self):
+        for token in self.tokens:
+            print(token)
+
+
+    def error(self, message):
+        print(message)
+        self.has_error = True
+    
+            
+
     
 
 
@@ -168,6 +257,9 @@ class Token:
         self.lexeme = lexeme
         self.literal = literal
         self.line = line
+
+    def __str__(self):
+        return f"{self.type} {self.lexeme} {self.literal} {self.line}"
 
 
 
@@ -190,11 +282,186 @@ TOKEN_TYPES = [
     "PRINT_OP"
 ]
 
+
+RESERVED_WORDS = {
+    "if": "IF",
+    "output": "OUTPUT",
+}
     
-            
+
+# Parser
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.current_idx = 0
+        self.has_error = False
+
+    def parse(self):
+        try:
+            return self.expression()
+        except Exception as e:
+            print(e)
+        
+    
+
+
+    # define the nonterminals 
+    def expression(self):
+        print("expression")
+        return self.equality()
+
+    def equality(self):
+        print("equality")
+        expr = self.comparison()
+        while self.match("EQUAL_EQUAL", "BANG_EQUAL"):
+            operator = self.previous_token()
+            right = self.comparison()
+            expr = Binary(expr, operator, right)
+            print(f"equality: {expr}")
+        return expr
+
+    def comparison(self):
+        print("comparison")
+        expr = self.term()
+        while self.match("GREATER", "GREATER_EQUAL", "LESS", "LESS_EQUAL"):
+            operator = self.previous_token()
+            right = self.term()
+            expr = Binary(expr, operator, right)
+            print(f"comparison: {expr}")
+        print(f"comparison: {expr}")
+        return expr
+
+    def term(self):
+        print("term")
+        expr = self.factor()
+        while self.match("PLUS", "MINUS"):
+            operator = self.previous_token()
+            right = self.factor()
+            expr = Binary(expr, operator, right)
+            print(f"term: {expr}")
+        return expr
+
+    def factor(self):
+        print("factor")
+        expr = self.unary()
+        while self.match("STAR", "SLASH"):
+            operator = self.previous_token()
+            right = self.unary()
+            expr = Binary(expr, operator, right)
+            print(f"factor: {expr}")
+        return expr
+
+    def unary(self):
+        print("unary")
+        if self.match("BANG", "MINUS"):
+            operator = self.previous_token()
+            right = self.unary()
+            return Unary(operator, right)
+        return self.primary()
+
+    def primary(self):
+        print("primary")
+        if self.match("FALSE"): return Literal(False)
+        if self.match("TRUE"): return Literal(True)
+        if self.match("NUMBER", "STRING"):
+            literal = Literal(self.previous_token().literal)
+            print(literal)
+            return literal
+        if self.match("LEFT_PAREN"):
+            expr = self.expression()
+            self.consume("RIGHT_PAREN", "Expect right parenthesis after expression")
+            grouping = Grouping(expr)
+            print(grouping)
+            return grouping
+        self.error(self.next_token(), "Expect expression")
+
+    def advance_token(self):
+        if self.is_at_end(): return None
+        self.current_idx += 1
+        return self.previous_token()
+
+
+    def match(self, *types):
+        if self.is_at_end():
+            return False
+        if self.next_token().type in types:
+            self.advance_token()
+            return True
+        return False
+
+    def check_type(self, type):
+        if self.is_at_end(): return False
+        if self.next_token().type == type:
+            return True
+        return False
+    
+    def is_at_end(self):
+        if self.current_idx >= len(self.tokens):
+            return True
+        return self.tokens[self.current_idx].type == "EOF"
+
+    def next_token(self, offset=0):
+        if self.is_at_end(): return None
+        token = self.tokens[self.current_idx + offset]
+        return token
+
+    def previous_token(self, offset=1):
+        if self.is_at_end(): return None
+        token = self.tokens[self.current_idx - offset]
+        return token
+
+    def consume(self, type, message):
+        if self.check_type(type):
+            return self.advance_token()
+        self.error(self.next_token(), message)
+
+    def error(self, token, message):
+        if token.type == "EOF":
+            print(f"{token.line} at end: {message}")
+        else:
+            print(f"{token.line} {token.lexeme}: {message}")
+        self.has_error = True
 
 
 
+# AST Nodes
+class Expr:
+    """  Base class   """
+    pass
+
+
+class Binary(Expr):
+    def __init__(self, left, operator, right):
+        self.left = left
+        self.operator = operator
+        self.right = right
+    
+    def __str__(self):
+        return f"({self.left} {self.operator} {self.right})"
+
+class Unary(Expr):
+    def __init__(self, operator, right):
+        self.operator = operator
+        self.right = right
+    
+    def __str__(self):
+        return f"({self.operator} {self.right})"
+
+
+class Grouping(Expr):
+    def __init__(self, expression):
+        self.expression = expression
+    
+    def __str__(self):
+        return f"({self.expression})"
+
+class Literal(Expr):
+    def __init__(self, value):
+        self.value = value
+    
+    def __str__(self):
+        return f"{self.value}"
 
 def main():
     HLInt(sys.argv).run()

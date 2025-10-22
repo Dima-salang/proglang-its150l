@@ -1,24 +1,21 @@
-program = { statement } ;
+program = { statement } EOF ;
 
-statement = assignment | declaration | expression | output | ifStmt ;
+statement = assignment | declaration | expression | output | ifStmt | block ;
 
-declaration = identifier, ":", type ;
-assignment = identifier, ":", "=", expression, ";" ;
-output = "output", "<", "<", expression ;
+declaration = IDENTIFIER COLON IDENTIFIER SEMICOLON ;
+assignment = IDENTIFIER COLON_EQUAL expression SEMICOLON ;
+output = OUTPUT PRINT_OP expression SEMICOLON ;
 
-ifStmt = "if", "(", condition, ")", block ;
-block = newline, indent, { statement }, dedent ;
+ifStmt = IF LEFT_PAREN comparison RIGHT_PAREN NEWLINE INDENT statement DEDENT ;
+block = NEWLINE INDENT { statement } DEDENT ;
 
+expression = equality ;
+equality = comparison { (EQUAL_EQUAL | BANG_EQUAL) comparison } ;
+comparison = term { (GREATER | GREATER_EQUAL | LESS | LESS_EQUAL) term } ;
+term = factor { (PLUS | MINUS) factor } ;
+factor = unary { (STAR | SLASH) unary } ;
+unary = [BANG | MINUS] primary ;
+primary = NUMBER | STRING | IDENTIFIER | LEFT_PAREN expression RIGHT_PAREN ;
 
-condition = comparison ;
-comparison = expression, ("==" | "!=" | ">" | "<"), expression ;
-
-
-expression = term, { ("+" | "-") term } ;
-term = number | identifier | "(" expression ")" ;
-
-identifier = [a-zA-Z_][a-zA-Z0-9_]* ;
-number = digit, { digit } ;
-digit = [0-9] ;
 
 
