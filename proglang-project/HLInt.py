@@ -16,10 +16,14 @@ class Token:
 # possible token types just for reference
 TOKEN_TYPES = [
     "IDENTIFIER",
+    "STRING",
+    "NUMBER",
     "PLUS",
     "MINUS",
     "EQUAL",
     "COLON",
+    "LEFT_PAREN",
+    "RIGHT_PAREN",
     "COLON_EQUAL",
     "EQUAL_EQUAL",
     "NOT_EQUAL",
@@ -449,8 +453,6 @@ class Parser:
         return self.primary()
 
     def primary(self):
-        if self.match("FALSE"): return Literal(False)
-        if self.match("TRUE"): return Literal(True)
         if self.match("NONE"): return Literal(None)
         if self.match("NUMBER", "STRING"):
             literal = Literal(self.previous_token().literal)
