@@ -1,0 +1,7 @@
+via : integer;
+x : double;
+x:=2.5;
+via:=2;
+output<<via;
+output<<x;
+

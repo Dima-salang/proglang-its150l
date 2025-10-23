@@ -1,15 +1,21 @@
-program = { statement } EOF ;
+program = { declaration } EOF ;
 
-statement = assignment | declaration | expression | output | ifStmt | block ;
-
-declaration = IDENTIFIER COLON IDENTIFIER SEMICOLON ;
+declaration = varDeclaration | statement ;
+varDeclaration = IDENTIFIER COLON TYPE SEMICOLON ;
 assignment = IDENTIFIER COLON_EQUAL expression SEMICOLON ;
+type = INTEGER | DOUBLE ;
+
+statement = exprStmt | outputStmt ;
+exprStmt = expression SEMICOLON ;
+outputStmt = OUTPUT PRINT_OP expression SEMICOLON ;
+
 output = OUTPUT PRINT_OP expression SEMICOLON ;
 
 ifStmt = IF LEFT_PAREN comparison RIGHT_PAREN NEWLINE INDENT statement DEDENT ;
 block = NEWLINE INDENT { statement } DEDENT ;
 
-expression = equality ;
+expression = assignment ;
+assignment = IDENTIFIER COLON_EQUAL assignment | equality ;
 equality = comparison { (EQUAL_EQUAL | BANG_EQUAL) comparison } ;
 comparison = term { (GREATER | GREATER_EQUAL | LESS | LESS_EQUAL) term } ;
 term = factor { (PLUS | MINUS) factor } ;

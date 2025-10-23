@@ -21,8 +21,8 @@ class HLInt:
     def run_file(self, filename):
         try:
             tokens = self.scan_file(filename)
-            ast = self.parse(tokens)
-            print(ast)
+            statements = self.parse(tokens)
+            self.interpret(statements)
         except Exception as e:
             print(e)
 
@@ -59,6 +59,10 @@ class HLInt:
         parser = Parser(tokens)
         return parser.parse()
 
+    def interpret(self, statements):
+        interpreter = Interpreter()
+        interpreter.interpret(statements)
+
     def error(self, message):
         print(message)
         self.error = True
@@ -91,6 +95,11 @@ class Scanner:
             if not self.is_at_end():
                 self.start_idx = self.current_idx
                 self.scan_token()
+        
+        # pop all remaining indentations
+        while self.indent_stack[-1] > 0:
+            self.indent_stack.pop()
+            self.tokens.append(Token("DEDENT", "", None, self.line))
 
         self.add_token("EOF")
 
@@ -235,8 +244,10 @@ class Scanner:
         return self.source[self.current_idx + offset]
 
     def print_tokens(self):
-        for token in self.tokens:
-            print(token)
+        # write to RES_SYM.txt
+        with open("RES_SYM.txt", "w") as f:
+            for token in self.tokens:
+                f.write(str(token) + "\n")
 
 
     def error(self, message):
@@ -286,6 +297,8 @@ TOKEN_TYPES = [
 RESERVED_WORDS = {
     "if": "IF",
     "output": "OUTPUT",
+    "integer": "INTEGER",
+    "double": "DOUBLE",
 }
     
 
@@ -299,61 +312,108 @@ class Parser:
 
     def parse(self):
         try:
-            return self.expression()
+            statements = []
+            while not self.is_at_end():
+                if self.match("NEWLINE"):
+                    continue
+                statements.append(self.declaration())
+            return statements
         except Exception as e:
             print(e)
-        
-    
 
+    def declaration(self):
+        print("next token: ", self.next_token().type)
+        if self.next_token().type == "IDENTIFIER":
+            if self.next_token(1).type == "COLON":
+                return self.var_decl_stmt()
+        return self.statement()
+
+    # statements
+    def statement(self):
+        if self.match("OUTPUT"):
+            return self.output_stmt()
+        return self.expression_stmt()
+
+    def output_stmt(self):
+        self.consume("PRINT_OP", "Expect '<<' after expression")
+        expression = self.expression()
+        self.consume("SEMICOLON", "Expect ';' after expression")
+        return OutputStmt(expression)
+
+    def expression_stmt(self):
+        expression = self.expression()
+        self.consume("SEMICOLON", "Expect ';' after expression")
+        return ExpressionStmt(expression)
+
+    def var_decl_stmt(self):
+        name = self.consume("IDENTIFIER", "Expect variable name")
+
+        self.consume("COLON", "Expect ':' after variable name")
+        data_type = self.data_type()
+
+        self.consume("SEMICOLON", "Expect ';' after declaration")
+        return VarDeclStmt(name, data_type)
+
+    def data_type(self):
+        if self.check_type("INTEGER"):
+            token = self.next_token()
+            self.consume("INTEGER", "Expect 'integer' after ':'")
+            return token
+        if self.check_type("DOUBLE"):
+            token = self.next_token()
+            self.consume("DOUBLE", "Expect 'double' after ':'")
+            return token
+        self.error(self.next_token(), "Expect data type")
+    
 
     # define the nonterminals 
     def expression(self):
-        print("expression")
-        return self.equality()
+        return self.assignment()
+
+    def assignment(self):
+        expr = self.equality()
+        if self.match("COLON_EQUAL"):
+            equals = self.previous_token()
+            value = self.assignment()
+            if (isinstance(expr, Variable)):
+                assignment = Assign(expr.name, value)
+                return assignment
+            self.error(equals, "Invalid assignment target")
+        return expr
 
     def equality(self):
-        print("equality")
         expr = self.comparison()
         while self.match("EQUAL_EQUAL", "BANG_EQUAL"):
             operator = self.previous_token()
             right = self.comparison()
             expr = Binary(expr, operator, right)
-            print(f"equality: {expr}")
         return expr
 
     def comparison(self):
-        print("comparison")
         expr = self.term()
         while self.match("GREATER", "GREATER_EQUAL", "LESS", "LESS_EQUAL"):
             operator = self.previous_token()
             right = self.term()
             expr = Binary(expr, operator, right)
-            print(f"comparison: {expr}")
-        print(f"comparison: {expr}")
         return expr
 
     def term(self):
-        print("term")
         expr = self.factor()
         while self.match("PLUS", "MINUS"):
             operator = self.previous_token()
             right = self.factor()
             expr = Binary(expr, operator, right)
-            print(f"term: {expr}")
         return expr
 
     def factor(self):
-        print("factor")
         expr = self.unary()
         while self.match("STAR", "SLASH"):
             operator = self.previous_token()
             right = self.unary()
             expr = Binary(expr, operator, right)
-            print(f"factor: {expr}")
         return expr
 
     def unary(self):
-        print("unary")
         if self.match("BANG", "MINUS"):
             operator = self.previous_token()
             right = self.unary()
@@ -361,20 +421,21 @@ class Parser:
         return self.primary()
 
     def primary(self):
-        print("primary")
         if self.match("FALSE"): return Literal(False)
         if self.match("TRUE"): return Literal(True)
+        if self.match("NONE"): return Literal(None)
         if self.match("NUMBER", "STRING"):
             literal = Literal(self.previous_token().literal)
-            print(literal)
             return literal
         if self.match("LEFT_PAREN"):
             expr = self.expression()
             self.consume("RIGHT_PAREN", "Expect right parenthesis after expression")
             grouping = Grouping(expr)
-            print(grouping)
             return grouping
+        if self.match("IDENTIFIER"):
+            return Variable(self.previous_token().lexeme)
         self.error(self.next_token(), "Expect expression")
+
 
     def advance_token(self):
         if self.is_at_end(): return None
@@ -418,12 +479,156 @@ class Parser:
 
     def error(self, token, message):
         if token.type == "EOF":
-            print(f"{token.line} at end: {message}")
+            print(f"At line {token.line} at end: {message}")
         else:
-            print(f"{token.line} {token.lexeme}: {message}")
+            print(f"At line {token.line}: {message}")
         self.has_error = True
 
 
+# interpreter class for evaluating expressions
+class Interpreter:
+    def __init__(self):
+        self.environment = Environment()
+
+    def interpret(self, statements):
+        try:
+            for statement in statements:
+                self.evaluate_stmt(statement)
+        except RuntimeError as e:
+            print(e)
+
+    def evaluate(self, expr):
+        if isinstance(expr, Literal):
+            # we just return the value of the literal token
+            return expr.value
+        if isinstance(expr, Grouping):
+            # recursively evaluate the expression inside the grouping
+            return self.evaluate(expr.expression)
+        if isinstance(expr, Binary):
+            # recursively evaluate the operands
+            left = self.evaluate(expr.left)
+            right = self.evaluate(expr.right)
+            match expr.operator.type:
+                case "PLUS":
+                    # concatenation
+                    if (isinstance(left, str) or isinstance(right, str)):
+                        return str(left) + str(right)
+                    # else just normal addition
+                    return (float(left) + float(right))
+                case "MINUS":
+                    return (float(left) - float(right))
+                case "STAR":
+                    return (float(left) * float(right))
+                case "SLASH":
+                    return (float(left) / float(right))
+                case "GREATER":
+                    return (float(left) > float(right))
+                case "GREATER_EQUAL":
+                    return (float(left) >= float(right))
+                case "LESS":
+                    return (float(left) < float(right))
+                case "LESS_EQUAL":
+                    return (float(left) <= float(right))
+                case "EQUAL_EQUAL":
+                    return self.is_equal(left, right)
+                case "BANG_EQUAL":
+                    return not self.is_equal(left, right)
+        if isinstance(expr, Unary):
+            right = self.evaluate(expr.right)
+            match expr.operator.type:
+                case "BANG":
+                    return not right
+                case "MINUS":
+                    return -(float(right))
+
+        if isinstance(expr, Variable):
+            return self.environment.get(expr.name)
+        if isinstance(expr, Assign):
+            value = self.evaluate(expr.value)
+            self.environment.assign(expr.name, value)
+            return value
+        raise RuntimeError(f"Unsupported expression type: {expr.type}")
+
+    def evaluate_stmt(self, stmt):
+        if isinstance(stmt, ExpressionStmt):
+            return self.evaluate(stmt.expression)
+        if isinstance(stmt, OutputStmt):
+            value = self.evaluate(stmt.expression)
+            print(self.to_string(value))
+            return value
+        if isinstance(stmt, VarDeclStmt):
+            print("Declaring variable: ", stmt.name.lexeme)
+            self.environment.define(stmt.name.lexeme, stmt.value)
+            self.environment.print_dict()
+            return stmt.value
+        raise RuntimeError(f"Unsupported statement type: {stmt}")
+
+    def is_equal(self, obj_a, obj_b):
+        if obj_a is None and obj_b is None:
+            return True
+        if obj_a is None or obj_b is None:
+            return False
+        return obj_a == obj_b
+
+    
+    def is_truthy(self, obj):
+        if obj is None or obj == False:
+            return False
+        if isinstance(obj, bool):
+            return obj
+        return True
+
+
+    def to_string(self, obj):
+        if obj is None:
+            return "Null"
+        if isinstance(obj, float):
+            return str(obj)
+        return obj
+
+
+class Stmt:
+    """ Base class """
+    pass
+
+class ExpressionStmt(Stmt):
+    def __init__(self, expression):
+        self.expression = expression
+
+class OutputStmt(Stmt):
+    def __init__(self, expression):
+        self.expression = expression
+
+    def output(self):
+        print(self.expression)
+
+class VarDeclStmt(Stmt):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+class IfStmt(Stmt):
+    def __init__(self, condition, then_branch, else_branch):
+        self.condition = condition
+        self.then_branch = then_branch
+        self.else_branch = else_branch
+
+class BlockStmt(Stmt):
+    def __init__(self, statements):
+        self.statements = statements
+
+
+class DataType:
+    """ Base class """
+    pass
+
+class IntegerType(DataType):
+    def __init__(self):
+        self.type = "INTEGER"
+
+class DoubleType(DataType):
+    def __init__(self):
+        self.type = "DOUBLE"
 
 # AST Nodes
 class Expr:
@@ -462,6 +667,51 @@ class Literal(Expr):
     
     def __str__(self):
         return f"{self.value}"
+
+class Variable(Expr):
+    def __init__(self, name):
+        self.name = name
+    
+    def __str__(self):
+        return f"{self.name}"
+
+class Assign(Expr):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+    
+    def __str__(self):
+        return f"{self.name} := {self.value}"
+
+class Environment:
+    def __init__(self):
+        self.values = {}
+
+    def get(self, token_name):
+        print("Getting variable: ", token_name)
+        if token_name in self.values.keys():
+            print(self.values[token_name])
+            return self.values[token_name]
+        raise RuntimeError(f"Undefined variable {token_name}")
+        
+
+    # variable definition binding
+    # uses the name of the variable as the lookup key
+    def define(self, name, value):
+        self.values[name] = value
+
+    def assign(self, name, value):
+        name = name.lstrip()
+        print("Assigning variable: ", name)
+        if name in self.values.keys():
+            self.values[name] = value
+            return
+        raise RuntimeError(f"Undefined variable {name}")
+    
+    def print_dict(self):
+        for key, value in self.values.items():
+            print(f"{key}: {value}")
+
 
 def main():
     HLInt(sys.argv).run()
