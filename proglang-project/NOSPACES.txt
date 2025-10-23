@@ -1,1 +1,1 @@
-via : integer;x : double;x:=2.5;via:=2;output<<via;output<<x;
+via:integer;y:double;x:integer;x:=2;if (x==2)    y:=2.5375675623;output << y;

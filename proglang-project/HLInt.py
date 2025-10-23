@@ -2,11 +2,56 @@
 # command line program
 import sys
 
+# main token class
+class Token:
+    def __init__(self, type, lexeme, literal, line):
+        self.type = type
+        self.lexeme = lexeme
+        self.literal = literal
+        self.line = line
+
+    def __str__(self):
+        return f"{self.type} {self.lexeme} {self.literal} {self.line}"
+
+# possible token types just for reference
+TOKEN_TYPES = [
+    "IDENTIFIER",
+    "PLUS",
+    "MINUS",
+    "EQUAL",
+    "COLON",
+    "COLON_EQUAL",
+    "EQUAL_EQUAL",
+    "NOT_EQUAL",
+    "GREATER",
+    "GREATER_EQUAL",
+    "LESS",
+    "LESS_EQUAL",
+    "NEWLINE",
+    "INDENT",
+    "DEDENT",
+    "PRINT_OP",
+    "EOF",
+    "OUTPUT",
+    "IF",
+    "INTEGER",
+    "DOUBLE",
+]
+
+# reserved words and corresponding token types
+RESERVED_WORDS = {
+    "if": "IF",
+    "output": "OUTPUT",
+    "integer": "INTEGER",
+    "double": "DOUBLE",
+}
+
+# driver class for the interpreter
 class HLInt:
-    error = False
 
     def __init__(self, args):
         self.args = args
+        self.error = False
 
     def run(self):
         if (len(self.args) == 1):
@@ -23,8 +68,15 @@ class HLInt:
             tokens = self.scan_file(filename)
             statements = self.parse(tokens)
             self.interpret(statements)
-        except Exception as e:
-            print(e)
+        except ParserError as e:
+            self.error = True
+            print("Error: " + str(e))
+        except RuntimeError as e:
+            self.error = True
+            print("Error: " + str(e))
+        finally:
+            print("ERROR(S)!" if self.error else "NO ERROR(S)!")
+
 
     def scan_file(self, filename):
         with open(filename, "r") as f:
@@ -35,7 +87,7 @@ class HLInt:
             return scanner.tokens
 
     def clean_source(self, source):
-        # remove newlines and spaces
+        # remove newlines and spaces except for the indentation
         cleaned_lines = []
 
         for line in source:
@@ -45,15 +97,14 @@ class HLInt:
             if not stripped:
                 continue
 
-            parts = stripped.split()
-            cleaned_content = " ".join(parts)
-            
+            cleaned_content = " ".join(stripped.split())
             cleaned_line = (" " * indent) + cleaned_content
             cleaned_lines.append(cleaned_line)
 
         # write the new source to a file
         with open("NOSPACES.txt", "w") as f:
             f.writelines(cleaned_lines)
+
 
     def parse(self, tokens):
         parser = Parser(tokens)
@@ -67,6 +118,7 @@ class HLInt:
         print(message)
         self.error = True
 
+# scanner class for lexical analysis
 class Scanner:
     def __init__(self, source):
         self.source = source
@@ -128,7 +180,7 @@ class Scanner:
                 self.tokens.append(Token("DEDENT", "", None, self.line))
 
             if self.indent_stack[-1] != current_indent:
-                self.error("Indentation error")
+                raise ParserError(self.tokens[-1], "Indentation error")
         
 
     def scan_token(self):
@@ -173,7 +225,7 @@ class Scanner:
                 self.add_token("SEMICOLON")
             case "\n":
                 self.line += 1
-                self.add_token("NEWLINE")
+                self.add_token("NEWLINE", "\\n")
                 self.is_at_start_line = True
             case '"':
                 self.add_string()
@@ -183,7 +235,7 @@ class Scanner:
                 elif character.isalpha():
                     self.add_identifier()
                 else:
-                    self.error(f"Unexpected character: {character}")
+                    raise ParserError(self.tokens[-1], f"Unexpected character: {character}")
 
     def is_next(self, expected):
         if self.is_at_end(): return False
@@ -213,7 +265,7 @@ class Scanner:
             self.advance_char()
 
         if self.is_at_end():
-            self.error("Unterminated string")
+            raise ParserError(self.tokens[-1], "Unterminated string")
         self.advance_char()
         unquoted = self.source[self.start_idx+1:self.current_idx-1]
         self.add_token("STRING", unquoted)
@@ -246,64 +298,12 @@ class Scanner:
     def print_tokens(self):
         # write to RES_SYM.txt
         with open("RES_SYM.txt", "w") as f:
+            f.write("RESERVED WORDS AND SYMBOLS\n\n")
+            f.write("| Type | Lexeme | Line |\n")
             for token in self.tokens:
-                f.write(str(token) + "\n")
+                f.write(f"{token.type} {repr(token.lexeme)} {token.line} \n")
 
-
-    def error(self, message):
-        print(message)
-        self.has_error = True
-    
-            
-
-    
-
-
-        
-        
-        
-class Token:
-    def __init__(self, type, lexeme, literal, line):
-        self.type = type
-        self.lexeme = lexeme
-        self.literal = literal
-        self.line = line
-
-    def __str__(self):
-        return f"{self.type} {self.lexeme} {self.literal} {self.line}"
-
-
-
-TOKEN_TYPES = [
-    "IDENTIFIER",
-    "NUMBER",
-    "PLUS",
-    "MINUS",
-    "EQUAL",
-    "COLON",
-    "EQUAL_EQUAL",
-    "NOT_EQUAL",
-    "GREATER",
-    "GREATER_EQUAL",
-    "LESS",
-    "LESS_EQUAL",
-    "NEWLINE",
-    "INDENT",
-    "DEDENT",
-    "PRINT_OP"
-]
-
-
-RESERVED_WORDS = {
-    "if": "IF",
-    "output": "OUTPUT",
-    "integer": "INTEGER",
-    "double": "DOUBLE",
-}
-    
-
-# Parser
-
+# Parser for building the abstract syntax tree
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -311,27 +311,29 @@ class Parser:
         self.has_error = False
 
     def parse(self):
-        try:
-            statements = []
-            while not self.is_at_end():
-                if self.match("NEWLINE"):
-                    continue
-                statements.append(self.declaration())
-            return statements
-        except Exception as e:
-            print(e)
+        statements = []
+        while not self.is_at_end():
+            if self.match("NEWLINE"):
+                continue
+            statements.append(self.declaration())
+        return statements
 
     def declaration(self):
-        print("next token: ", self.next_token().type)
-        if self.next_token().type == "IDENTIFIER":
-            if self.next_token(1).type == "COLON":
-                return self.var_decl_stmt()
-        return self.statement()
+        try:
+            if self.next_token().type == "IDENTIFIER":
+                if self.next_token(1).type == "COLON":
+                    return self.var_decl_stmt()
+            return self.statement()
+        except ParserError as e:
+            print("Error: " + str(e))
+            self.synchronize()
 
     # statements
     def statement(self):
         if self.match("OUTPUT"):
             return self.output_stmt()
+        if self.match("IF"):
+            return self.if_stmt()
         return self.expression_stmt()
 
     def output_stmt(self):
@@ -339,6 +341,24 @@ class Parser:
         expression = self.expression()
         self.consume("SEMICOLON", "Expect ';' after expression")
         return OutputStmt(expression)
+
+    def if_stmt(self):
+        self.consume("LEFT_PAREN", "Expect '(' after 'if'")
+        condition = self.expression()
+        self.consume("RIGHT_PAREN", "Expect ')' after 'if'")
+        self.consume("NEWLINE", "Expect newline after 'if'")
+        self.consume("INDENT", "Expect indent after 'if'")
+        then_branch = self.block()
+
+        else_branch = None
+        if (self.check_type("ELSE")):
+            self.consume("ELSE", "Expect 'else' after 'if'")
+            self.consume("NEWLINE", "Expect newline after 'else'")
+            self.consume("INDENT", "Expect indent after 'else'")
+            else_branch = self.block()
+            self.consume("DEDENT", "Expect dedent after 'else'")
+        self.consume("DEDENT", "Expect dedent after 'if'")
+        return IfStmt(condition, then_branch, else_branch)
 
     def expression_stmt(self):
         expression = self.expression()
@@ -352,7 +372,7 @@ class Parser:
         data_type = self.data_type()
 
         self.consume("SEMICOLON", "Expect ';' after declaration")
-        return VarDeclStmt(name, data_type)
+        return VarDeclStmt(name, None, data_type)
 
     def data_type(self):
         if self.check_type("INTEGER"):
@@ -364,6 +384,14 @@ class Parser:
             self.consume("DOUBLE", "Expect 'double' after ':'")
             return token
         self.error(self.next_token(), "Expect data type")
+
+    def block(self):
+        statements = []
+        while not self.check_type("DEDENT") and not self.is_at_end():
+            if self.match("NEWLINE"):
+                continue
+            statements.append(self.declaration())
+        return BlockStmt(statements)
     
 
     # define the nonterminals 
@@ -475,17 +503,69 @@ class Parser:
     def consume(self, type, message):
         if self.check_type(type):
             return self.advance_token()
-        self.error(self.next_token(), message)
+        raise ParserError(self.next_token(), message)
 
     def error(self, token, message):
-        if token.type == "EOF":
-            print(f"At line {token.line} at end: {message}")
-        else:
-            print(f"At line {token.line}: {message}")
         self.has_error = True
+        if token and token.type == "EOF":
+            err_msg = (f"At line {token.line} at end: {message}")
+        elif token:
+            err_msg = (f"At line {token.line}: {message}")
+        else:
+            err_msg = message
+        raise RuntimeError(err_msg)
+    
+    def synchronize(self):
+        self.advance_token()
+        while not self.is_at_end():
+            if self.previous_token().type == "SEMICOLON":
+                return
 
+            match(self.next_token().type):
+                case "IF": break
+                case "OUTPUT": break
+                case "INTEGER": break
+                case "DOUBLE": break
+                case "NONE": break
+                case "TRUE": break
+                case "FALSE": break
+                case "IDENTIFIER": break
+                case "LEFT_PAREN": break
+                case "COLON": break
+                case "COLON_EQUAL": break
+                case "PLUS": break
+                case "MINUS": break
+                case "STAR": break
+                case "SLASH": break
+                case "GREATER": break
+                case "GREATER_EQUAL": break
+                case "LESS": break
+                case "LESS_EQUAL": break
+                case "EQUAL_EQUAL": break
+                case "BANG_EQUAL": break
+                case "BANG": break
+                case "NEWLINE": break
+                case "INDENT": break
+                case "DEDENT": break
+                case "EOF": return
 
-# interpreter class for evaluating expressions
+            self.advance_token()
+
+# ParserError class for error handling
+class ParserError(Exception):
+    def __init__(self, token, message):
+        self.line = token.line
+        self.message = message
+        self.token = token
+
+    def __str__(self):
+        if self.token.type == "EOF":
+            return f"At line {self.line} at end: {self.message}"
+        elif self.token:
+            return f"At line {self.line}: {self.message}"
+        return self.message
+
+# interpreter class for evaluating expressions in the environment
 class Interpreter:
     def __init__(self):
         self.environment = Environment()
@@ -494,7 +574,7 @@ class Interpreter:
         try:
             for statement in statements:
                 self.evaluate_stmt(statement)
-        except RuntimeError as e:
+        except ParserError as e:
             print(e)
 
     def evaluate(self, expr):
@@ -547,7 +627,7 @@ class Interpreter:
             value = self.evaluate(expr.value)
             self.environment.assign(expr.name, value)
             return value
-        raise RuntimeError(f"Unsupported expression type: {expr.type}")
+        raise ParserError(expr, f"Unsupported expression type: {expr.type} at line {expr.line}")
 
     def evaluate_stmt(self, stmt):
         if isinstance(stmt, ExpressionStmt):
@@ -557,10 +637,22 @@ class Interpreter:
             print(self.to_string(value))
             return value
         if isinstance(stmt, VarDeclStmt):
-            print("Declaring variable: ", stmt.name.lexeme)
-            self.environment.define(stmt.name.lexeme, stmt.value)
-            self.environment.print_dict()
-            return stmt.value
+            value = None
+            if stmt.value is not None:
+                value = self.evaluate(stmt.value)
+            self.environment.define(stmt.name.lexeme, value)
+            return value
+        if isinstance(stmt, IfStmt):
+            if (self.is_truthy(self.evaluate(stmt.condition))):
+                self.evaluate_stmt(stmt.then_branch)
+            else:
+                if (stmt.else_branch is not None):
+                    self.evaluate_stmt(stmt.else_branch)
+            return
+        if isinstance(stmt, BlockStmt):
+            for statement in stmt.statements:
+                self.evaluate_stmt(statement)
+            return
         raise RuntimeError(f"Unsupported statement type: {stmt}")
 
     def is_equal(self, obj_a, obj_b):
@@ -583,10 +675,37 @@ class Interpreter:
         if obj is None:
             return "Null"
         if isinstance(obj, float):
-            return str(obj)
+            return str(round(obj, 2))
         return obj
 
+# environment where state and execution of code takes place
+class Environment:
+    def __init__(self):
+        self.values = {}
 
+    def get(self, token_name):
+        if token_name in self.values.keys():
+            return self.values[token_name]
+        raise ParserError(token_name, f"Undefined variable {token_name}")
+        
+
+    # variable definition binding
+    # uses the name of the variable as the lookup key
+    def define(self, name, value):
+        self.values[name] = value
+
+    def assign(self, name, value):
+        if name in self.values.keys():
+            self.values[name] = value
+            return
+        raise ParserError(name, f"Undefined variable {name}")
+    
+    def print_dict(self):
+        for key, value in self.values.items():
+            print(f"{key}: {value}")
+
+# AST Nodes
+# statements
 class Stmt:
     """ Base class """
     pass
@@ -603,9 +722,10 @@ class OutputStmt(Stmt):
         print(self.expression)
 
 class VarDeclStmt(Stmt):
-    def __init__(self, name, value):
+    def __init__(self, name, value, data_type):
         self.name = name
         self.value = value
+        self.data_type = data_type
 
 class IfStmt(Stmt):
     def __init__(self, condition, then_branch, else_branch):
@@ -617,24 +737,10 @@ class BlockStmt(Stmt):
     def __init__(self, statements):
         self.statements = statements
 
-
-class DataType:
-    """ Base class """
-    pass
-
-class IntegerType(DataType):
-    def __init__(self):
-        self.type = "INTEGER"
-
-class DoubleType(DataType):
-    def __init__(self):
-        self.type = "DOUBLE"
-
-# AST Nodes
+# expressions
 class Expr:
     """  Base class   """
     pass
-
 
 class Binary(Expr):
     def __init__(self, left, operator, right):
@@ -683,34 +789,6 @@ class Assign(Expr):
     def __str__(self):
         return f"{self.name} := {self.value}"
 
-class Environment:
-    def __init__(self):
-        self.values = {}
-
-    def get(self, token_name):
-        print("Getting variable: ", token_name)
-        if token_name in self.values.keys():
-            print(self.values[token_name])
-            return self.values[token_name]
-        raise RuntimeError(f"Undefined variable {token_name}")
-        
-
-    # variable definition binding
-    # uses the name of the variable as the lookup key
-    def define(self, name, value):
-        self.values[name] = value
-
-    def assign(self, name, value):
-        name = name.lstrip()
-        print("Assigning variable: ", name)
-        if name in self.values.keys():
-            self.values[name] = value
-            return
-        raise RuntimeError(f"Undefined variable {name}")
-    
-    def print_dict(self):
-        for key, value in self.values.items():
-            print(f"{key}: {value}")
 
 
 def main():

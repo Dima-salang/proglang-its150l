@@ -1,40 +1,44 @@
-IDENTIFIER via via 1
-COLON : None 1
-INTEGER integer None 1
-SEMICOLON ; None 1
-NEWLINE 
- None 2
-IDENTIFIER x x 2
-COLON : None 2
-DOUBLE double None 2
-SEMICOLON ; None 2
-NEWLINE 
- None 3
-IDENTIFIER x x 3
-COLON_EQUAL := None 3
-NUMBER 2.5 2.5 3
-SEMICOLON ; None 3
-NEWLINE 
- None 4
-IDENTIFIER via via 4
-COLON_EQUAL := None 4
-NUMBER 2 2.0 4
-SEMICOLON ; None 4
-NEWLINE 
- None 5
-OUTPUT output None 5
-PRINT_OP << None 5
-IDENTIFIER via via 5
-SEMICOLON ; None 5
-NEWLINE 
- None 6
-OUTPUT output None 6
-PRINT_OP << None 6
-IDENTIFIER x x 6
-SEMICOLON ; None 6
-NEWLINE 
- None 7
-NEWLINE 
- None 8
-EOF 
- None 8
+RESERVED WORDS AND SYMBOLS
+
+| Type | Lexeme | Line |
+IDENTIFIER 'via' 1 
+COLON ':' 1 
+INTEGER 'integer' 1 
+SEMICOLON ';' 1 
+NEWLINE '\n' 2 
+IDENTIFIER 'y' 2 
+COLON ':' 2 
+DOUBLE 'double' 2 
+SEMICOLON ';' 2 
+NEWLINE '\n' 3 
+IDENTIFIER 'x' 3 
+COLON ':' 3 
+INTEGER 'integer' 3 
+SEMICOLON ';' 3 
+NEWLINE '\n' 4 
+IDENTIFIER 'x' 4 
+COLON_EQUAL ':=' 4 
+NUMBER '2' 4 
+SEMICOLON ';' 4 
+NEWLINE '\n' 5 
+IF 'if' 5 
+LEFT_PAREN '(' 5 
+IDENTIFIER 'x' 5 
+EQUAL_EQUAL '==' 5 
+NUMBER '2' 5 
+RIGHT_PAREN ')' 5 
+NEWLINE '\n' 6 
+INDENT '' 6 
+IDENTIFIER 'y' 6 
+COLON_EQUAL ':=' 6 
+NUMBER '2.5375675623' 6 
+SEMICOLON ';' 6 
+NEWLINE '\n' 7 
+DEDENT '' 7 
+OUTPUT 'output' 7 
+PRINT_OP '<<' 7 
+IDENTIFIER 'y' 7 
+SEMICOLON ';' 7 
+NEWLINE '\n' 8 
+NEWLINE '\n' 9 
+EOF '\n' 9 

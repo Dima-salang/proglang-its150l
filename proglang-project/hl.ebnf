@@ -5,9 +5,10 @@ varDeclaration = IDENTIFIER COLON TYPE SEMICOLON ;
 assignment = IDENTIFIER COLON_EQUAL expression SEMICOLON ;
 type = INTEGER | DOUBLE ;
 
-statement = exprStmt | outputStmt ;
+statement = exprStmt | outputStmt | ifStmt ;
 exprStmt = expression SEMICOLON ;
 outputStmt = OUTPUT PRINT_OP expression SEMICOLON ;
+ifStmt = IF LEFT_PAREN comparison RIGHT_PAREN NEWLINE INDENT statement DEDENT ;
 
 output = OUTPUT PRINT_OP expression SEMICOLON ;
 
