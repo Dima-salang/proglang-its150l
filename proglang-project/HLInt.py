@@ -1,5 +1,3 @@
-
-# command line program
 import sys
 
 # main token class
@@ -48,6 +46,7 @@ RESERVED_WORDS = {
     "output": "OUTPUT",
     "integer": "INTEGER",
     "double": "DOUBLE",
+    "string": "STRING",
 }
 
 # driver class for the interpreter
@@ -78,6 +77,9 @@ class HLInt:
         except RuntimeError as e:
             self.error = True
             print("Error: " + str(e))
+        except Exception as e:
+            self.error = True
+            print("Error: " + str(e))
         finally:
             print("ERROR(S)!" if self.error else "NO ERROR(S)!")
 
@@ -95,15 +97,10 @@ class HLInt:
         cleaned_lines = []
 
         for line in source:
-            indent = len(line) - len(line.lstrip(" \t"))
-            stripped = line.strip()
-
-            if not stripped:
-                continue
-
-            cleaned_content = " ".join(stripped.split())
-            cleaned_line = (" " * indent) + cleaned_content
+            # remove spaces and newlines by replacing them
+            cleaned_line = line.replace(" ", "").replace("\n", "")
             cleaned_lines.append(cleaned_line)
+            
 
         # write the new source to a file
         with open("NOSPACES.txt", "w") as f:
@@ -196,6 +193,7 @@ class Scanner:
             self.advance_char()
             return
             
+        # we scan character by character and emit the corresponding token
         character = self.advance_char()
         match character:
             case "+":
@@ -228,8 +226,8 @@ class Scanner:
             case ";":
                 self.add_token("SEMICOLON")
             case "\n":
-                self.line += 1
                 self.add_token("NEWLINE", "\\n")
+                self.line += 1
                 self.is_at_start_line = True
             case '"':
                 self.add_string()
@@ -241,27 +239,29 @@ class Scanner:
                 else:
                     raise ParserError(self.tokens[-1], f"Unexpected character: {character}")
 
+
+    # checks if the next character is the expected character
     def is_next(self, expected):
         if self.is_at_end(): return False
         if (self.source[self.current_idx] != expected): return False
         self.current_idx += 1
         return True
 
-    
+    # advances the current index by 1 and returns the character at the previous index
     def advance_char(self):
         self.current_idx += 1
         return self.source[self.current_idx - 1]
 
-        
-
+    # checks if we are at the end of the source
     def is_at_end(self):
         return self.current_idx >= len(self.source)
 
-    
+    # adds a token to the list of tokens
     def add_token(self, type, value=None):
         text = self.source[self.start_idx:self.current_idx]
         self.tokens.append(Token(type, text, value, self.line))
 
+    # adds a string token to the list of tokens
     def add_string(self):
         while self.next_char() != '"' and not self.is_at_end():
             if self.next_char() == '\n':
@@ -274,6 +274,7 @@ class Scanner:
         unquoted = self.source[self.start_idx+1:self.current_idx-1]
         self.add_token("STRING", unquoted)
 
+    # adds a number token to the list of tokens
     def add_number(self):
         # scan for the entire integer part
         while self.next_char().isdigit() and not self.is_at_end():
@@ -286,6 +287,7 @@ class Scanner:
                 self.advance_char()
         self.add_token("NUMBER", float(self.source[self.start_idx:self.current_idx]))
 
+    # adds an identifier token to the list of tokens
     def add_identifier(self):
         while self.next_char().isalpha() and not self.is_at_end():
             self.advance_char()
@@ -295,10 +297,12 @@ class Scanner:
         else:
             self.add_token("IDENTIFIER", text)
 
+    # returns the next character without consuming it
     def next_char(self, offset=0):
         if self.is_at_end(): return "\0"
         return self.source[self.current_idx + offset]
 
+    # prints the list of tokens to a file
     def print_tokens(self):
         # write to RES_SYM.txt
         with open("RES_SYM.txt", "w") as f:
@@ -314,6 +318,7 @@ class Parser:
         self.current_idx = 0
         self.has_error = False
 
+    # parses the list of tokens into an abstract syntax tree
     def parse(self):
         statements = []
         while not self.is_at_end():
@@ -386,6 +391,10 @@ class Parser:
         if self.check_type("DOUBLE"):
             token = self.next_token()
             self.consume("DOUBLE", "Expect 'double' after ':'")
+            return token
+        if self.check_type("STRING"):
+            token = self.next_token()
+            self.consume("STRING", "Expect 'string' after ':'")
             return token
         self.error(self.next_token(), "Expect data type")
 
@@ -466,13 +475,14 @@ class Parser:
             return Variable(self.previous_token().lexeme)
         self.error(self.next_token(), "Expect expression")
 
-
+    # advances the current index by 1 and returns the previous token
     def advance_token(self):
         if self.is_at_end(): return None
         self.current_idx += 1
         return self.previous_token()
 
 
+    # checks if the next token is in the list of types and advances the current index by 1
     def match(self, *types):
         if self.is_at_end():
             return False
@@ -481,42 +491,39 @@ class Parser:
             return True
         return False
 
+    # checks if the next token is of the specified type
     def check_type(self, type):
         if self.is_at_end(): return False
         if self.next_token().type == type:
             return True
         return False
     
+    # checks if we are at the end of the list of tokens
     def is_at_end(self):
         if self.current_idx >= len(self.tokens):
             return True
         return self.tokens[self.current_idx].type == "EOF"
 
+    # returns the next token without consuming it
     def next_token(self, offset=0):
         if self.is_at_end(): return None
         token = self.tokens[self.current_idx + offset]
         return token
 
+    # returns the previous token without consuming it
     def previous_token(self, offset=1):
         if self.is_at_end(): return None
         token = self.tokens[self.current_idx - offset]
         return token
 
+    # consumes the next token if it is of the specified type and raises a parser error
     def consume(self, type, message):
         if self.check_type(type):
             return self.advance_token()
         raise ParserError(self.next_token(), message)
 
-    def error(self, token, message):
-        self.has_error = True
-        if token and token.type == "EOF":
-            err_msg = (f"At line {token.line} at end: {message}")
-        elif token:
-            err_msg = (f"At line {token.line}: {message}")
-        else:
-            err_msg = message
-        raise RuntimeError(err_msg)
-    
+    # synchronizes the parser by skipping tokens until it finds a boundary token
+    # this is so that we can skip over error tokens and continue parsing
     def synchronize(self):
         self.advance_token()
         while not self.is_at_end():
@@ -533,6 +540,7 @@ class Parser:
                 case "FALSE": break
                 case "IDENTIFIER": break
                 case "LEFT_PAREN": break
+                case "RIGHT_PAREN": break
                 case "COLON": break
                 case "COLON_EQUAL": break
                 case "PLUS": break
@@ -572,13 +580,15 @@ class Interpreter:
     def __init__(self):
         self.environment = Environment()
 
+    # interprets the list of statements
     def interpret(self, statements):
         try:
             for statement in statements:
                 self.evaluate_stmt(statement)
-        except ParserError as e:
-            print(e)
+        except Exception as e:
+            raise RuntimeError(e)
 
+    # recursively evaluate the expressions
     def evaluate(self, expr):
         if isinstance(expr, Literal):
             # we just return the value of the literal token
@@ -590,6 +600,10 @@ class Interpreter:
             # recursively evaluate the operands
             left = self.evaluate(expr.left)
             right = self.evaluate(expr.right)
+
+            # check if any operands are null
+            if (left is None or right is None):
+                raise ParserError(expr.operator, f"Operands {expr.left} or {expr.right} cannot be null")
             match expr.operator.type:
                 case "PLUS":
                     # concatenation
@@ -617,6 +631,10 @@ class Interpreter:
                     return not self.is_equal(left, right)
         if isinstance(expr, Unary):
             right = self.evaluate(expr.right)
+
+            # check if operand is null
+            if (right is None):
+                raise ParserError(expr.operator, f"Operand {expr.right} cannot be null")
             match expr.operator.type:
                 case "BANG":
                     return not right
@@ -631,12 +649,16 @@ class Interpreter:
             return value
         raise ParserError(expr, f"Unsupported expression type: {expr.type} at line {expr.line}")
 
+    # evaluate the statements
     def evaluate_stmt(self, stmt):
         if isinstance(stmt, ExpressionStmt):
             return self.evaluate(stmt.expression)
         if isinstance(stmt, OutputStmt):
             value = self.evaluate(stmt.expression)
-            print(self.to_string(value))
+            if isinstance(value, float):
+                print(f"{value:.2f}")
+            else:
+                print(self.to_string(value))
             return value
         if isinstance(stmt, VarDeclStmt):
             value = None
@@ -677,6 +699,7 @@ class Interpreter:
         if obj is None:
             return "Null"
         if isinstance(obj, float):
+            # make it to 2 decimal places
             return str(round(obj, 2))
         return obj
 
@@ -685,6 +708,7 @@ class Environment:
     def __init__(self):
         self.values = {}
 
+    # variable lookup binding
     def get(self, token_name):
         if token_name in self.values.keys():
             return self.values[token_name]
@@ -696,12 +720,14 @@ class Environment:
     def define(self, name, value):
         self.values[name] = value
 
+    # variable assignment binding
     def assign(self, name, value):
         if name in self.values.keys():
             self.values[name] = value
             return
         raise ParserError(name, f"Undefined variable {name}")
     
+    # just print the dictionary
     def print_dict(self):
         for key, value in self.values.items():
             print(f"{key}: {value}")
@@ -793,9 +819,9 @@ class Assign(Expr):
 
 
 
+# main function
 def main():
     HLInt(sys.argv).run()
-
 
 if __name__ == "__main__":
     main()

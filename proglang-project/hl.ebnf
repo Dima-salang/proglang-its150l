@@ -3,7 +3,7 @@ program = { declaration } EOF ;
 declaration = varDeclaration | statement ;
 varDeclaration = IDENTIFIER COLON TYPE SEMICOLON ;
 assignment = IDENTIFIER COLON_EQUAL expression SEMICOLON ;
-type = INTEGER | DOUBLE ;
+type = INTEGER | DOUBLE | STRING ;
 
 statement = exprStmt | outputStmt | ifStmt ;
 exprStmt = expression SEMICOLON ;
@@ -12,7 +12,6 @@ ifStmt = IF LEFT_PAREN comparison RIGHT_PAREN NEWLINE INDENT statement DEDENT ;
 
 output = OUTPUT PRINT_OP expression SEMICOLON ;
 
-ifStmt = IF LEFT_PAREN comparison RIGHT_PAREN NEWLINE INDENT statement DEDENT ;
 block = NEWLINE INDENT { statement } DEDENT ;
 
 expression = assignment ;
