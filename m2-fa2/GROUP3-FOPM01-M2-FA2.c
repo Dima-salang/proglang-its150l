@@ -19,6 +19,7 @@ struct process {
 void fcfs(struct process processes[], int arr_len);
 void sjf(struct process processes[], int arr_len);
 void sort(struct process processes[], int arr_len);
+void print_stats(struct process processes[], int arr_len);
 void insert(struct process processes[], int *arr_len, struct process process);
 void min_heapify(struct process processes[], int arr_len, int index);
 void swap(struct process *process_a, struct process *process_b);
@@ -45,6 +46,7 @@ int main() {
 
     // run fcfs algo
     fcfs(processes, arr_len);
+    print_stats(processes, arr_len);
     print_averages(processes, arr_len);
     draw_gantt_chart(processes, arr_len, sum_burst_time(processes, arr_len), 0);
 
@@ -68,6 +70,7 @@ int main() {
 
     // run sjf algo
     sjf(processes, arr_len);
+    print_stats(processes, arr_len);
     print_averages(processes, arr_len);
     draw_gantt_chart(processes, arr_len, sum_burst_time(processes, arr_len), 1);
 
@@ -89,8 +92,8 @@ void get_user_input(struct process processes[], int *arr_len) {
         printf("Enter the burst time for process %d: ", i+1);
         scanf("%d", &processes[i].burst_time);
 
-        printf("Enter the arrival time for process %d: ", i+1);
-        scanf("%d", &processes[i].arrival_time);
+        // set the arrival time to 0
+        processes[i].arrival_time = i;
     }
 }   
 
@@ -99,11 +102,8 @@ void fcfs(struct process processes[], int arr_len) {
     // sort the processes by arrival time
     sort(processes, arr_len);
     printf("\nFirst-Come First-Serve\n");
-    int current_time = 1;
-    print_header();
+    int current_time = 0;
     for (int i = 0; i < arr_len; i++) {
-        // calculate the waiting time
-        processes[i].waiting_time = current_time - processes[i].arrival_time;
 
         // simulate the processing
         current_time += processes[i].burst_time;
@@ -111,11 +111,12 @@ void fcfs(struct process processes[], int arr_len) {
         // calculate the turnaround time
         processes[i].turnaround_time = current_time - processes[i].arrival_time;
 
+        // calculate the waiting time
+        processes[i].waiting_time = processes[i].turnaround_time - processes[i].burst_time;
+
         // calculate response time
         processes[i].response_time = processes[i].waiting_time;
 
-        // print the process
-        printf("%-10d %-15d %-15d %-15d %-15d %-15d\n", processes[i].pid, processes[i].burst_time, processes[i].arrival_time, processes[i].waiting_time, processes[i].turnaround_time, processes[i].response_time);
     }
     
 }
@@ -123,38 +124,55 @@ void fcfs(struct process processes[], int arr_len) {
 // shortest job first function
 void sjf(struct process processes[], int arr_len) {
     printf("\nShortest Job First\n");
-    int current_time = 1;
+    sort(processes, arr_len);
 
-    // copy the processes array
-    struct process processes_copy[arr_len];
-    for (int i = 0; i < arr_len; i++) {
-        processes_copy[i] = processes[i];
-    }
-    int arr_len_copy = arr_len;
+    struct process ready_queue[arr_len];
+    int ready_queue_len = 0;
 
-    print_header();
-    for (int i = 0; i < arr_len; i++) {
-        // get the process with the min burst time
-        struct process min_process = get_min_burst_time(processes_copy, &arr_len_copy);
-        
-        
-        // calculate the waiting time
-        min_process.waiting_time = current_time - min_process.arrival_time;
+    int current_time = 0;
+    int completed_processes = 0;
+    int running_process_active = 0;
+    int pindex = 0;
+
+
+    while (completed_processes < arr_len) {
+        // check for arrivals and insert into ready queue
+        while (pindex < arr_len && processes[pindex].arrival_time <= current_time) {
+            insert(ready_queue, &ready_queue_len, processes[pindex]);
+            pindex++;
+        }
+
+        // if ready queue is empty, skip to the next arrival since nothing arrived
+        if (ready_queue_len == 0) {
+            current_time = processes[pindex].arrival_time;
+            continue;
+        }
+
+        // get the shortest job
+        struct process shortest = get_min_burst_time(ready_queue, &ready_queue_len);
 
         // simulate the processing
-        current_time += min_process.burst_time;
+        current_time += shortest.burst_time;
 
-        // calculate the turnaround time
-        min_process.turnaround_time = current_time - min_process.arrival_time;
+        // calculate for turnaround
+        shortest.turnaround_time = current_time - shortest.arrival_time;
 
-        // calculate response time
-        min_process.response_time = min_process.waiting_time;
+        // calculate for waiting
+        shortest.waiting_time = shortest.turnaround_time - shortest.burst_time;
+
+        // calculate for response
+        shortest.response_time = shortest.waiting_time;
+
 
         // assign the min process to the processes array
-        processes[i] = min_process;
+        for (int j = 0; j < arr_len; j++) {
+            if (processes[j].pid == shortest.pid) {
+                processes[j] = shortest;
+                break;
+            }
+        }
 
-        // print the process
-        printf("%-10d %-15d %-15d %-15d %-15d %-15d\n", min_process.pid, min_process.burst_time, min_process.arrival_time, min_process.waiting_time, min_process.turnaround_time, min_process.response_time);
+        completed_processes++;
     }
     
 }
@@ -167,6 +185,13 @@ void sort(struct process processes[], int arr_len) {
                 swap(&processes[i], &processes[j]);
             }
         }
+    }
+}
+
+void print_stats(struct process processes[], int arr_len) {
+    print_header();
+    for (int i = 0; i < arr_len; i++) {
+        printf("%-10d %-15d %-15d %-15d %-15d %-15d\n", processes[i].pid, processes[i].burst_time, processes[i].arrival_time, processes[i].waiting_time, processes[i].turnaround_time, processes[i].response_time);
     }
 }
 
@@ -194,6 +219,7 @@ void print_averages(struct process processes[], int arr_len) {
 // 1 - sjf
 void draw_gantt_chart(struct process processes[], int arr_len, int sum_burst_time, int algo) {
     // simulate the processing per second
+    int completed_processes = 0;
 
     // process index
     int pindex = -1;
@@ -214,8 +240,8 @@ void draw_gantt_chart(struct process processes[], int arr_len, int sum_burst_tim
     printf("\nLegend:\n");
     printf("PID <time>: CPU is processing\n");
     printf("* <time>: CPU is idle\n\n");
-    int current_time = 1;
-    while (current_time <= sum_burst_time+buffer_time) {
+    int current_time = 0;
+    while (completed_processes < arr_len) {
         // check if there is a process that arrives at current time
         pindex = check_arrival(processes, arr_len, current_time);
         if (pindex != -1) {
@@ -240,6 +266,7 @@ void draw_gantt_chart(struct process processes[], int arr_len, int sum_burst_tim
             if (running_process.burst_time <= 0) {
                 struct process null_process = {0};
                 running_process = null_process;
+                completed_processes++;
             }
             running_process.burst_time--;
         }
