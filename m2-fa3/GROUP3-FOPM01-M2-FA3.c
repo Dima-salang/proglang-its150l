@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 
@@ -15,21 +16,24 @@ struct Process {
     int waiting_time;
     int turnaround_time;
     int response_time;
+    int start_time;
+    int completion_time;
 };
 
 // function prototypes
-void get_user_input(struct Process processes[], int *arr_len);
-void round_robin(struct Process processes[], int arr_len, int quantum);
-void srtf(struct Process processes[], int arr_len);
-void sort(struct Process processes[], int arr_len);
-int sum_burst_time(struct Process processes[], int arr_len);
-int check_arrival(struct Process processes[], int arr_len, int time);
-void print_averages(struct Process processes[], int arr_len);
+void get_user_input(struct Process *processes, int *arr_len);
+void round_robin(struct Process *processes, int arr_len, int quantum);
+void srtf(struct Process *processes, int arr_len);
+void sort(struct Process *processes, int arr_len);
+int sum_burst_time(struct Process *processes, int arr_len);
+void check_arrival(struct Process *processes, struct Process *ready_queue, int *pindex, int arr_len, int *ready_queue_len, int time, char algo[]);
+void print_averages(struct Process *processes, int arr_len);
 void print_header();
-void print_process_stats(struct Process processes[], int arr_len);
-struct Process get_min_remaining_time(struct Process processes[], int *arr_len);
-void insert(struct Process processes[], int *arr_len, struct Process process);
-void min_heapify(struct Process processes[], int arr_len, int index);
+void print_process_stats(struct Process *processes, int arr_len);
+struct Process get_min_remaining_time(struct Process *processes, int *arr_len);
+int peek_min_remaining_time(struct Process *processes);
+void insert(struct Process *processes, int *arr_len, struct Process process);
+void min_heapify(struct Process *processes, int arr_len, int index);
 void swap(struct Process *process_a, struct Process *process_b);
 
 const int QUANTUM = 6;
@@ -53,9 +57,6 @@ int main() {
     print_process_stats(processes, arr_len);
     print_averages(processes, arr_len);
 
-    for (int i = 0; i < arr_len; i++) {
-        printf("%-10d %-15d %-15d %-15d %-15d %-15d\n", processes[i].pid, processes[i].burst_time, processes[i].arrival_time, processes[i].waiting_time, processes[i].turnaround_time, processes[i].response_time);
-    }
 
     // free the allocated memory for rr
     free(processes);
@@ -81,10 +82,6 @@ int main() {
     print_process_stats(processes, arr_len);
     print_averages(processes, arr_len);
 
-    // print the processes
-    for (int i = 0; i < arr_len; i++) {
-        printf("%-10d %-15d %-15d %-15d %-15d %-15d\n", processes[i].pid, processes[i].burst_time, processes[i].arrival_time, processes[i].waiting_time, processes[i].turnaround_time, processes[i].response_time);
-    }
 
 
     // free the allocated memory for srtf
@@ -108,6 +105,14 @@ void get_user_input(struct Process processes[], int *arr_len) {
 
         // make the remaining burst time equal to the burst time since the rbt will just decrease
         processes[i].remaining_burst_time = processes[i].burst_time;
+        processes[i].running_time = 0;
+        processes[i].waiting_time = 0;
+        processes[i].turnaround_time = 0;
+        processes[i].completion_time = 0;
+
+        // set the response time to -1 to show that it has not been computed yet
+        processes[i].response_time = -1;
+        processes[i].start_time = -1;
 
         printf("Enter the arrival time for process %d: ", i+1);
         scanf("%d", &processes[i].arrival_time);
@@ -126,43 +131,44 @@ void round_robin(struct Process processes[], int arr_len, int quantum) {
     // running process
     struct Process running_process = {0};
 
+    // process index
+    int pindex = 0;
+
     // current time
-    int current_time = 1;
+    int current_time = 0;
+    int completed_processes = 0;
+    int running_process_active = 0;
 
-    // sum of burst time for time to run the rr
-    int burst_time_sum = sum_burst_time(processes, arr_len);
 
-    for (int i = 0; i < burst_time_sum; i++) {
+    while (completed_processes < arr_len) {
         // check if there is a process that arrives at current time
-        int pindex = check_arrival(processes, arr_len, current_time);
-        if (pindex != -1) {
-            // check if there is a running process
-            if (running_process.pid != 0) {
-                // put the new process in the ready queue
-                ready_queue[ready_queue_len] = processes[pindex];
-                ready_queue_len++;
-            } else {
-                // put the new process in the running process
-                running_process = processes[pindex];
-                // reset the running time
-                running_process.running_time = 0;
-            }
-        }
+        check_arrival(processes, ready_queue, &pindex, arr_len, &ready_queue_len, current_time, "round_robin");
 
         // check for completion at current time
         if (running_process.pid != 0) {
             // if the process is completed, compute the statistics
             if (running_process.remaining_burst_time <= 0) {
                 // compute the statistics
-                running_process.turnaround_time = current_time - running_process.arrival_time;
+                running_process.completion_time = current_time;
+                running_process.turnaround_time = running_process.completion_time - running_process.arrival_time;
                 running_process.waiting_time = running_process.turnaround_time - running_process.burst_time;
-                running_process.response_time = running_process.waiting_time;
+
+                if (running_process.response_time == -1) {
+                    running_process.response_time = running_process.start_time - running_process.arrival_time;
+                }
                 
-                // print the running process
-                printf("%d %d %d %d %d %d %d %d\n", running_process.pid, running_process.burst_time, running_process.arrival_time, running_process.waiting_time, running_process.turnaround_time, running_process.response_time, running_process.running_time, running_process.remaining_burst_time);
 
                 // assign the running process to the processes array
-                processes[i] = running_process;
+                for (int j = 0; j < arr_len; j++) {
+                    if (processes[j].pid == running_process.pid) {
+                        processes[j] = running_process;
+                        break;
+                    }
+                }
+
+                completed_processes++;
+                running_process.running_time = 0;
+                running_process_active = 0;
 
                 // empty the running process
                 struct Process null_process = {0};
@@ -172,29 +178,44 @@ void round_robin(struct Process processes[], int arr_len, int quantum) {
                 // if the process is not completed, check if it has reached the quantum
 
                 // put the running process to the ready queue
+                running_process.running_time = 0;
                 ready_queue[ready_queue_len] = running_process;
                 ready_queue_len++;
 
                 // empty the running process
                 struct Process null_process = {0};
                 running_process = null_process;
-            }else {
-                // if the process neither completed nor reached the quantum, increment the running time
-                running_process.running_time++;
+                running_process_active = 0;
             }
-            running_process.remaining_burst_time--;
         }
 
         // if the ready queue is not empty and there is no running process, put the process in the running process
-        if (ready_queue_len > 0 && running_process.pid == 0) {
+        if (ready_queue_len > 0 && running_process_active == 0) {
             running_process = ready_queue[0];
+            // reset the running time of the new running process
+            running_process.running_time = 0;
+
+
+            // if the running process has not started previously, set the start time   
+            if (running_process.start_time == -1) {
+                running_process.start_time = current_time;
+            }
+
             // remove the process from the ready queue and move all elements to the left
             for (int i = 0; i < ready_queue_len-1; i++) {
                 ready_queue[i] = ready_queue[i+1];
             }
             ready_queue_len--;
+            running_process_active = 1;
         }
-        current_time++;
+
+        if (running_process_active) {
+            running_process.running_time += 1;
+            running_process.remaining_burst_time -= 1;
+            current_time += 1;
+        } else if (pindex < arr_len) {
+            current_time = processes[pindex].arrival_time;
+        }
     }
 }
 
@@ -202,6 +223,7 @@ void round_robin(struct Process processes[], int arr_len, int quantum) {
 void srtf(struct Process processes[], int arr_len) {
     // sort the processes by arrival time
     sort(processes, arr_len);
+
 
     // ready queue
     struct Process ready_queue[arr_len];
@@ -211,66 +233,84 @@ void srtf(struct Process processes[], int arr_len) {
     struct Process running_process = {0};
 
     // current time
-    int current_time = 1;
+    int current_time = 0;
+    int running_process_active = 0;
+    int completed_processes = 0;
 
-    // sum of burst time for time to run the rr
-    int burst_time_sum = sum_burst_time(processes, arr_len);
+    // process index
+    int pindex = 0;
 
-    for (int i = 0; i < burst_time_sum; i++) {
+    while (completed_processes < arr_len) {
         // check if there is a process that arrives at current time
-        int pindex = check_arrival(processes, arr_len, current_time);
-        if (pindex != -1) {
-            // check if there is a running process and that the running process has a smaller rbt
-            if (running_process.pid != 0) {
-                if (running_process.remaining_burst_time < processes[pindex].remaining_burst_time) {
-                    // put the new process in the ready queue
-                    insert(ready_queue, &ready_queue_len, processes[pindex]);
-                } else {
-                    // put the running process to the ready queue
-                    insert(ready_queue, &ready_queue_len, running_process);
-                    
-                    // put the new process in the running process
-                    running_process = processes[pindex];
-                }
-            } else {
-                // put the new process in the running since there is no running process
-                running_process = processes[pindex];
-            }
-        }
+        check_arrival(processes, ready_queue, &pindex, arr_len, &ready_queue_len, current_time, "srtf");
 
         // check for completion at current time
-        if (running_process.pid != 0) {
+        if (running_process_active) {
             if (running_process.remaining_burst_time <= 0) {
                 // compute statistics
-                running_process.turnaround_time = current_time - running_process.arrival_time;
+                running_process.completion_time = current_time;
+                running_process.turnaround_time = running_process.completion_time - running_process.arrival_time;
                 running_process.waiting_time = running_process.turnaround_time - running_process.burst_time;
-                running_process.response_time = running_process.waiting_time;
+                
 
                 // assign back to the processes array
-                processes[i] = running_process;
+                for (int j = 0; j < arr_len; j++) {
+                    if (processes[j].pid == running_process.pid) {
+                        processes[j] = running_process;
+                        break;
+                    }
+                }
+
+                completed_processes++;
+                running_process_active = 0;
+                running_process.running_time = 0;
 
                 // empty the running process
                 struct Process null_process = {0};
                 running_process = null_process;
             }
-            // decrement the remaining burst time
-            else {
-                running_process.remaining_burst_time--;
+
+            // check if there is a running process and that the running process has a smaller rbt
+            if (running_process.remaining_burst_time > peek_min_remaining_time(ready_queue)) {
+                // insert the running process back to the ready queue since the incoming process rbt is less
+                insert(ready_queue, &ready_queue_len, running_process);
+
+                // get the process with the smallest rbt
+                running_process = get_min_remaining_time(ready_queue, &ready_queue_len);
+                running_process_active = 1;
+                running_process.running_time = 0;
+
+                if (running_process.start_time == -1) {
+                    running_process.start_time = current_time;
+                    running_process.response_time = running_process.start_time - running_process.arrival_time;
+                }
             }
         }
 
         // check if there is a process in the ready queue and no running process
-        if (ready_queue_len > 0 && running_process.pid == 0) {
+        if (ready_queue_len > 0 && running_process_active== 0) {
             running_process = get_min_remaining_time(ready_queue, &ready_queue_len);
+            running_process_active = 1;
+            running_process.running_time = 0;
+
+            if (running_process.start_time == -1) {
+                running_process.start_time = current_time;
+                running_process.response_time = running_process.start_time - running_process.arrival_time;
+            }
         }
-        current_time++;
+
+        if (running_process_active) {
+            running_process.running_time += 1;
+            running_process.remaining_burst_time -= 1;
+        }
+        current_time += 1;
     }
 }
 
 
 void print_process_stats(struct Process processes[], int arr_len) {
     for (int i = 0; i < arr_len; i++) {
-        printf("%-10d %-15d %-15d %-15d %-15d %-15d\n", processes[i].pid, processes[i].burst_time, processes[i].arrival_time, processes[i].waiting_time, processes[i].turnaround_time, processes[i].response_time);
+        printf("%-10d %-15d %-15d %-15d %-15d %-15d %-15d\n", processes[i].pid, processes[i].burst_time, processes[i].arrival_time, processes[i].waiting_time, processes[i].turnaround_time, processes[i].response_time, processes[i].completion_time);
     }
 }
 
@@ -313,13 +353,19 @@ void print_averages(struct Process processes[], int arr_len) {
 
 
 // helper function to check whether a process arrives at a certain time
-int check_arrival(struct Process processes[], int arr_len, int time) {
-    for (int i = 0; i < arr_len; i++) {
-        if (processes[i].arrival_time == time) {
-            return i;
+void check_arrival(struct Process processes[], struct Process ready_queue[], int *pindex, int arr_len, int *ready_queue_len, int time, char algo[]) {
+    if (strcmp(algo, "srtf") == 0) {
+        while (*pindex < arr_len && processes[*pindex].arrival_time <= time) {
+            insert(ready_queue, ready_queue_len, processes[*pindex]);
+            *pindex += 1;
+        }
+    } else {
+        while (*pindex < arr_len && processes[*pindex].arrival_time <= time) {
+            ready_queue[*ready_queue_len] = processes[*pindex];
+            *ready_queue_len += 1;
+            *pindex += 1;
         }
     }
-    return -1;
 }
 
 
@@ -339,6 +385,10 @@ struct Process get_min_remaining_time(struct Process processes[], int *arr_len) 
     min_heapify(processes, *arr_len, 0);
 
     return min;
+}
+
+int peek_min_remaining_time(struct Process processes[]) {
+    return processes[0].remaining_burst_time;
 }
 
 void insert(struct Process processes[], int *arr_len, struct Process process) {
@@ -383,7 +433,7 @@ void swap(struct Process *process_a, struct Process *process_b) {
 // printing the header of the table
 void print_header() {
     printf("\n");
-    printf("%-10s %-15s %-15s %-15s %-15s %-15s\n", "PID", "Burst Time", "Arrival Time", "Waiting Time", "Turnaround Time", "Response Time");
-    printf("%-10s %-15s %-15s %-15s %-15s %-15s\n", "---", "----------", "------------", "------------", "-------------", "-------------");
+    printf("%-10s %-15s %-15s %-15s %-15s %-15s %-15s\n", "PID", "Burst Time", "Arrival Time", "Waiting Time", "Turnaround Time", "Response Time", "Completion Time");
+    printf("%-10s %-15s %-15s %-15s %-15s %-15s %-15s\n", "---", "----------", "------------", "------------", "-------------", "-------------", "-------------");
 }
 
