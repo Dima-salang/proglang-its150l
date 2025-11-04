@@ -2,6 +2,7 @@ package com.grp3project;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
@@ -24,47 +25,57 @@ public class Simulator {
     }
 
     public void run() {
+        // we tick every second for the timer
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            updateRunningProcesses();
             checkFinishedProcesses(time);
-            checkArrival(time);
-            checkReadyQueue();
             if (checkCoalesce(time)) {
-                memory.coalesce();
+                System.out.println("Coalesced the Free List");
             }
             if (checkCompaction(time)) {
-                memory.compaction();
+                System.out.println("Compacted the Memory Array");
             }
+            checkArrival(time);
+            checkReadyQueue();
             System.out.println("Time: " + time);
             printRunningProcesses();
             printReadyQueue();
             printFreeList();
-            updateRunningProcesses();
             time++;
         }));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
     }
 
+    // we check for arriving processes
     public void checkArrival(int time) {
         for (Process process : processList) {
-            if (process.getArrivalTime() == time && !readyQueue.contains(process) && !process.isFinished()) {
+            if (process.getArrivalTime() <= time && !readyQueue.contains(process) && !memory.getMemArray().contains(process) && !process.isFinished()) {
                 readyQueue.add(process);
             }
         }
     }
 
+
+    // we check for finished processes and remove them
     public void checkFinishedProcesses(int time) {
-        Iterator<Process> iterator = memory.getMemArray().iterator();
-        while (iterator.hasNext()) {
-            Process process = iterator.next();
-            if (process.getRemainingTime() <= 0) {
+        ArrayList<Process> toRemove = new ArrayList<>();
+        for (Process process : memory.getMemArray()) {
+            if (process.getRemainingTime() <= 0 && !process.isFinished()) {
                 process.setFinished(true);
-                memory.removeProcess(process);
-                iterator.remove();
+                toRemove.add(process);
             }
+        }
+
+        for (Process p : toRemove) {
+            memory.removeProcess(p);
         }
     }
 
+
+    // we check for processes in the ready queue and add them to the memory array
+    // since there might be processes that are now able to be inserted into the memory array 
+    // after coalescing or compacting
     public void checkReadyQueue() {
         Iterator<Process> iterator = readyQueue.iterator();
         while (iterator.hasNext()) {
@@ -75,38 +86,35 @@ public class Simulator {
         }
     }
 
+    // we tick the remaining time of the processes
     public void updateRunningProcesses() {
-        Iterator<Process> iterator = memory.getMemArray().iterator();
-        while (iterator.hasNext()) {
-            Process process = iterator.next();
-            process.setRemainingTime(process.getRemainingTime() - 1);
-            iterator.remove();
+        for (Process process : memory.getMemArray()) {
+            if (!process.isFinished()) {
+                process.setRemainingTime(process.getRemainingTime() - 1);
+            }
         }
     }
 
 
-
+    // we check if it is time to coalesce
     public boolean checkCoalesce(double time) {
-        if (time % coalesceInterval == 0) {
+        if (time > 0 && time % coalesceInterval == 0) {
             memory.coalesce();
             return true;
         }
         return false;
     }
 
+    // we check if it is time to compact
     public boolean checkCompaction(double time) {
-        if (time % compactionInterval == 0) {
+        if (time > 0 && time % compactionInterval == 0) {
             memory.compaction();
             return true;
         }
         return false;
     }
 
-    private boolean processesFinished() {
-        return processList.stream().allMatch(process -> process.isFinished());
-    }
-
-
+    // print functions just for debugging
     private void printRunningProcesses() {
         System.out.println("Running processes:");
         for (Process process : memory.getMemArray()) {
@@ -128,6 +136,7 @@ public class Simulator {
         }
     }
 
+    // getter and setter functions
     public Memory getMemory() {
         return memory;
     }

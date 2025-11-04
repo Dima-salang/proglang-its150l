@@ -1,6 +1,7 @@
 package com.grp3project;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 
 public class FreeList {
     private int size;
@@ -9,7 +10,7 @@ public class FreeList {
     public FreeList(int size) {
         this.size = size;
         this.freeList = new ArrayList<FreeBlock>();
-        this.freeList.add(new FreeBlock(0, size));
+        this.freeList.add(new FreeBlock(0, size - 1));
     }
 
     public int getSize() {
@@ -20,10 +21,13 @@ public class FreeList {
         return freeList;
     }
 
+    // if there is a removed process, we add another free block with that process
+    // size
     public void addFreeBlock(int startAddress, int endAddress) {
         freeList.add(new FreeBlock(startAddress, endAddress));
     }
 
+    // if there is an added process, we remove from the free list
     public void removeFreeBlock(int startAddress, int endAddress) {
         for (int i = 0; i < freeList.size(); i++) {
             if (freeList.get(i).getStartAddress() == startAddress && freeList.get(i).getEndAddress() == endAddress) {
@@ -33,45 +37,44 @@ public class FreeList {
         }
     }
 
-    public FreeBlock getFirstFit(int size) {
-        for (FreeBlock freeBlock : freeList) {
-            int freeBlockSize = freeBlock.getEndAddress() - freeBlock.getStartAddress();
-            if (freeBlockSize >= size) {
-                // if the free block is the same size as the process size we just return the free block itself
-                if (freeBlockSize == size) {
-                    freeList.remove(freeBlock);
-                    return freeBlock;
+    // we use the first fit algorithm since it is the simplest
+    // and it is also faster as said in the book
+    public FreeBlock getFirstFit(int processSize) {
+        Iterator<FreeBlock> iterator = freeList.iterator();
+        while (iterator.hasNext()) {
+            FreeBlock block = iterator.next();
+            int blockSize = block.getEndAddress() - block.getStartAddress() + 1;
+
+            if (blockSize >= processSize) {
+                int allocStart = block.getStartAddress();
+                int allocEnd = allocStart + processSize - 1;
+
+                block.setStartAddress(allocEnd + 1);
+
+                if (block.getStartAddress() > block.getEndAddress()) {
+                    iterator.remove();
                 }
-                // only get the amount of size we need and divide the free block
 
-                // delete the free block
-                freeList.remove(freeBlock);
-
-                // create the division
-                int returnedStartAddress = freeBlock.getStartAddress();
-                int returnedEndAddress = freeBlock.getStartAddress() + size;
-
-                // new free block for the process
-                addFreeBlock(returnedStartAddress, returnedEndAddress);
-
-                // new extra free block after the new block since we divided
-                addFreeBlock(returnedEndAddress+1, freeBlock.getEndAddress());
-                return new FreeBlock(returnedStartAddress, returnedEndAddress);
+                return new FreeBlock(allocStart, allocEnd);
             }
         }
         return null;
     }
 
 
+    // we coalesce the free list to merge together consecutive free blocks
     public void coalesceFreeList() {
-        if (freeList.isEmpty()) {
+        if (freeList.size() < 2) {
             return;
         }
 
+        // sort free list by start address
+        freeList.sort(java.util.Comparator.comparingInt(FreeBlock::getStartAddress));
 
+
+        // we use a two-window approach for coalescing
         int left = 0;
         int right = 1;
-
         while (right < freeList.size()) {
             if (freeList.get(left).getEndAddress() + 1 == freeList.get(right).getStartAddress()) {
                 freeList.get(left).setEndAddress(freeList.get(right).getEndAddress());
@@ -80,15 +83,6 @@ public class FreeList {
                 left++;
                 right++;
             }
-        }
-    }
-
-    public void compaction(int prevProcessEndAddress) {
-        for (int i = 0; i < freeList.size(); i++) {
-            FreeBlock freeBlock = freeList.get(i);
-            freeBlock.setStartAddress(prevProcessEndAddress+1);
-            freeBlock.setEndAddress(freeBlock.getStartAddress() + freeBlock.getEndAddress());
-            prevProcessEndAddress = freeBlock.getEndAddress();
         }
     }
 }

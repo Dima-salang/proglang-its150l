@@ -1,16 +1,24 @@
 package com.grp3project;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
@@ -21,11 +29,14 @@ import javafx.scene.layout.BorderWidths;
 import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import javafx.util.converter.IntegerStringConverter;
 
 public class SimulatorController {
+
+    private int seqArrivalTime = 0;
 
     @FXML private TextField memorySize;
     @FXML private TextField coalesceInterval;
@@ -37,58 +48,65 @@ public class SimulatorController {
     @FXML private TableColumn<Process, Integer> burstCol;
     @FXML private TableColumn<Process, Integer> arrivalCol;
 
+    @FXML private Label timeLabel;
+    @FXML private ScrollPane memoryScrollPane;
     @FXML private HBox memoryDisplay;
+    @FXML private Pane memoryRuler;
+    
     @FXML private TableView<FreeBlock> freeListTable;
     @FXML private TableColumn<FreeBlock, Integer> startAddressCol;
     @FXML private TableColumn<FreeBlock, Integer> endAddressCol;
     @FXML private TableColumn<FreeBlock, Integer> freeSizeCol;
 
-    @FXML private Label timeLabel;
+    @FXML private TableView<Process> readyQueueTable;
+    @FXML private TableColumn<Process, Integer> readyPidCol;
+    @FXML private TableColumn<Process, Integer> readySizeCol;
+
 
     private Simulator simulator;
     private Timeline uiUpdater;
-    private ObservableList<Process> processList = FXCollections.observableArrayList();
+    private final ObservableList<Process> processList = FXCollections.observableArrayList();
+    private final HashMap<Integer, Color> processColors = new HashMap<>();
+
 
     @FXML
     private void initialize() {
-        // Make process table editable
         processTable.setEditable(true);
-
         pidCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getPid()).asObject());
         sizeCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getSize()).asObject());
         burstCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getBurstTime()).asObject());
         arrivalCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getArrivalTime()).asObject());
 
-        // Enable inline editing for size, burst, arrival time
         sizeCol.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
         sizeCol.setOnEditCommit(e -> e.getRowValue().setSize(e.getNewValue()));
-
         burstCol.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
         burstCol.setOnEditCommit(e -> e.getRowValue().setBurstTime(e.getNewValue()));
-
         arrivalCol.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
         arrivalCol.setOnEditCommit(e -> e.getRowValue().setArrivalTime(e.getNewValue()));
-
         processTable.setItems(processList);
 
-        // free list table setup
         startAddressCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getStartAddress()).asObject());
         endAddressCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getEndAddress()).asObject());
-        freeSizeCol.setCellValueFactory(cell -> new SimpleIntegerProperty(
-                cell.getValue().getEndAddress() - cell.getValue().getStartAddress() + 1).asObject());
+        freeSizeCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getSize()).asObject());
+
+        readyPidCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getPid()).asObject());
+        readySizeCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getSize()).asObject());
     }
 
     @FXML
     private void addProcess() {
-        int nextPid = processList.size() + 1;
-        Process newProc = new Process(nextPid, 100, 5, processList.size() * 2); // default example
+        seqArrivalTime += 2;
+        int nextPid = processList.isEmpty() ? 1 : processList.stream().mapToInt(Process::getPid).max().orElse(0) + 1;
+        Process newProc = new Process(nextPid, 100, 5, seqArrivalTime);
         processList.add(newProc);
+
     }
 
     @FXML
     private void removeSelectedProcess() {
         Process selected = processTable.getSelectionModel().getSelectedItem();
         if (selected != null) processList.remove(selected);
+        seqArrivalTime -= 2;
     }
 
     @FXML
@@ -103,11 +121,19 @@ public class SimulatorController {
             int coalesceInt = Integer.parseInt(coalesceInterval.getText());
             int compactInt = Integer.parseInt(compactionInterval.getText());
 
+            processColors.clear();
+            for (int i = 0; i < processList.size(); i++) {
+                Process p = processList.get(i);
+                // generate unique colors
+                Color color = Color.hsb(i * (360.0 / processList.size()), 0.75, 0.9);
+                processColors.put(p.getPid(), color);
+            }
+
             simulator = new Simulator(memSize, coalesceInt, compactInt);
             simulator.getProcessList().addAll(processList);
             simulator.run();
 
-            uiUpdater = new Timeline(new KeyFrame(Duration.seconds(1), e -> refreshUI()));
+            uiUpdater = new Timeline(new KeyFrame(Duration.millis(500), e -> refreshUI()));
             uiUpdater.setCycleCount(Timeline.INDEFINITE);
             uiUpdater.play();
 
@@ -117,53 +143,97 @@ public class SimulatorController {
     }
 
     private void refreshUI() {
-        // Memory visualization
-        memoryDisplay.getChildren().clear();
-        int totalSize = simulator.getMemory().getSize();
-        double visualWidth = 800; // total width of the memory bar
-
-        // Draw blocks: both processes and free spaces
-        int lastAddr = 0;
-
-        for (FreeBlock free : simulator.getMemory().getFreeList().getFreeList()) {
-            if (free.getStartAddress() > lastAddr) {
-                // allocated region before this hole
-                Pane used = makeBlock(free.getStartAddress() - lastAddr, totalSize, visualWidth, Color.LIGHTBLUE, "Used");
-                memoryDisplay.getChildren().add(used);
-            }
-            // add hole
-            Pane hole = makeBlock(free.getSize(), totalSize, visualWidth, Color.LIGHTGRAY, "Free");
-            memoryDisplay.getChildren().add(hole);
-            lastAddr = free.getEndAddress() + 1;
-        }
-
-        if (lastAddr < totalSize) {
-            // memory after last free block
-            Pane used = makeBlock(totalSize - lastAddr, totalSize, visualWidth, Color.LIGHTBLUE, "Used");
-            memoryDisplay.getChildren().add(used);
-        }
-
-        // update free list table
-        ObservableList<FreeBlock> freeBlocks = FXCollections.observableArrayList(simulator.getMemory().getFreeList().getFreeList());
-        freeListTable.setItems(freeBlocks);
+        if (simulator == null) return;
 
         timeLabel.setText("Time: " + simulator.getCurrentTime() + "s");
+
+        freeListTable.setItems(FXCollections.observableArrayList(simulator.getMemory().getFreeList().getFreeList()));
+        readyQueueTable.setItems(FXCollections.observableArrayList(simulator.getReadyQueue()));
+        
+
+        // we update the ui from the state of the controller
+        updateMemoryVisuals();
     }
 
-    private Pane makeBlock(int blockSize, int totalSize, double totalWidth, Color color, String label) {
-        double widthRatio = (double) blockSize / totalSize * totalWidth;
-        Pane block = new Pane();
-        block.setPrefWidth(widthRatio);
-        block.setPrefHeight(30);
-        block.setBackground(new Background(new BackgroundFill(color, new CornerRadii(3), null)));
-        block.setBorder(new Border(new BorderStroke(Color.BLACK, BorderStrokeStyle.SOLID, CornerRadii.EMPTY, BorderWidths.DEFAULT)));
+    private void updateMemoryVisuals() {
+        memoryDisplay.getChildren().clear();
 
-        Label lbl = new Label(label);
-        lbl.setTextFill(Color.BLACK);
-        lbl.setLayoutX(5);
-        lbl.setLayoutY(5);
-        block.getChildren().add(lbl);
+        int totalSize = simulator.getMemory().getSize();
+        
+        double visualWidth = memoryScrollPane.getWidth() - 4; 
+        if (visualWidth <= 0) visualWidth = 800;
 
-        return block;
+        List<MemoryBlock> blocks = new ArrayList<>();
+
+        // add all running processes
+        for (Process p : simulator.getMemory().getMemArray()) {
+            blocks.add(new MemoryBlock(
+                    p.getStartAddress(),
+                    p.getSize(),
+                    "P" + p.getPid(),
+                    processColors.getOrDefault(p.getPid(), Color.ORANGE) // get the color of the process
+            ));
+        }
+
+        // add all free blocks with lightgray color
+        for (FreeBlock f : simulator.getMemory().getFreeList().getFreeList()) {
+            blocks.add(new MemoryBlock(
+                    f.getStartAddress(),
+                    f.getSize(),
+                    "Free",
+                    Color.LIGHTGRAY
+            ));
+        }
+
+        blocks.sort(Comparator.comparingInt(MemoryBlock::startAddress));
+
+        for (MemoryBlock block : blocks) {
+            Pane blockPane = makeBlock(block, totalSize, visualWidth);
+            memoryDisplay.getChildren().add(blockPane);
+        }
+    }
+
+    private Pane makeBlock(MemoryBlock block, int totalSize, double totalWidth) {
+        double width = (double) block.size() / totalSize * totalWidth;
+        
+        VBox contentBox = new VBox(-2);
+        contentBox.setAlignment(Pos.CENTER);
+
+        Label pidLabel = new Label(block.label());
+        pidLabel.setTextFill(Color.BLACK);
+        pidLabel.setStyle("-fx-font-weight: bold;");
+
+        Label sizeLabel = new Label(block.size() + "K");
+        sizeLabel.setTextFill(Color.BLACK);
+        sizeLabel.setStyle("-fx-font-size: 9px;");
+
+        if (width > 35) {
+            contentBox.getChildren().addAll(pidLabel, sizeLabel);
+        } else if (width > 15) {
+            contentBox.getChildren().add(pidLabel);
+        }
+        
+        Pane blockPane = new Pane(contentBox);
+        blockPane.setPrefWidth(width);
+        blockPane.setMinWidth(width);
+        blockPane.setMaxWidth(width);
+        
+        blockPane.setPrefHeight(50);
+        blockPane.setBackground(new Background(new BackgroundFill(block.color(), new CornerRadii(3), null)));
+        blockPane.setBorder(new Border(new BorderStroke(Color.BLACK, BorderStrokeStyle.SOLID, new CornerRadii(3), new BorderWidths(1))));
+
+        contentBox.layoutXProperty().bind(blockPane.widthProperty().subtract(contentBox.widthProperty()).divide(2));
+        contentBox.layoutYProperty().bind(blockPane.heightProperty().subtract(contentBox.heightProperty()).divide(2));
+
+        Tooltip.install(blockPane, new Tooltip(
+                String.format("%s\nSize: %dK\nAddress: %d - %d",
+                        block.label().startsWith("P") ? "Process " + block.label() : "Free Block",
+                        block.size(),
+                        block.startAddress(),
+                        block.startAddress() + block.size() - 1
+                )
+        ));
+
+        return blockPane;
     }
 }

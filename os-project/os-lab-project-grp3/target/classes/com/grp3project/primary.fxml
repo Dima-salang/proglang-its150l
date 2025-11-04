@@ -1,61 +1,130 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.geometry.Insets?>
+<?import javafx.scene.text.Font?>
 
 <AnchorPane xmlns="http://javafx.com/javafx"
             xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.grp3project.SimulatorController"
-            prefWidth="950" prefHeight="700">
+            prefWidth="1000" prefHeight="750"
+            style="-fx-background-color: #f4f4f4;">
 
-    <VBox spacing="15" layoutX="20" layoutY="20" prefWidth="900">
-        
-        <!-- SETTINGS SECTION -->
-        <HBox spacing="10">
-            <Label text="Memory Size:" />
-            <TextField fx:id="memorySize" promptText="e.g., 1024" prefWidth="80" />
-            
-            <Label text="Coalesce Interval:" />
-            <TextField fx:id="coalesceInterval" promptText="seconds" prefWidth="80" />
-            
-            <Label text="Compaction Interval:" />
-            <TextField fx:id="compactionInterval" promptText="seconds" prefWidth="80" />
+    <VBox spacing="10" AnchorPane.topAnchor="10" AnchorPane.leftAnchor="10" AnchorPane.rightAnchor="10" AnchorPane.bottomAnchor="10">
+
+        <Label text="First Fit Simulator" style="-fx-font-size: 20px; -fx-font-weight: bold;">
+            <VBox.margin>
+                <Insets left="5" bottom="5"/>
+            </VBox.margin>
+        </Label>
+
+        <TitledPane text="Settings" collapsible="false" style="-fx-font-weight: bold;">
+            <VBox spacing="10" style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 5;">
+                <padding>
+                    <Insets top="15" right="20" bottom="15" left="20"/>
+                </padding>
+                <HBox spacing="20" alignment="CENTER_LEFT">
+                    <Label text="Memory Size (K):" minWidth="100"/>
+                    <TextField fx:id="memorySize" promptText="e.g., 1024" prefWidth="100" text="1024"/>
+                    
+                    <Label text="Coalesce Interval (s):" minWidth="120"/>
+                    <TextField fx:id="coalesceInterval" promptText="e.g., 5" prefWidth="100" text="5"/>
+                    
+                    <Label text="Compaction Interval (s):" minWidth="130"/>
+                    <TextField fx:id="compactionInterval" promptText="e.g., 10" prefWidth="100" text="10"/>
+                </HBox>
+            </VBox>
+        </TitledPane>
+
+        <TitledPane text="Processes" collapsible="false" style="-fx-font-weight: bold;">
+            <VBox spacing="10" style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 5;">
+                <padding>
+                    <Insets top="15" right="20" bottom="15" left="20"/>
+                </padding>
+                
+                <TableView fx:id="processTable" prefHeight="300" editable="true">
+                    <columns>
+                        <TableColumn text="PID" fx:id="pidCol" prefWidth="60" style="-fx-alignment: CENTER;"/>
+                        <TableColumn text="Size (K)" fx:id="sizeCol" prefWidth="100"/>
+                        <TableColumn text="Burst Time (s)" fx:id="burstCol" prefWidth="100"/>
+                        <TableColumn text="Arrival Time (s)" fx:id="arrivalCol" prefWidth="100"/>
+                    </columns>
+                    <columnResizePolicy>
+                        <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+                    </columnResizePolicy>
+                </TableView>
+
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button text="Add Process" onAction="#addProcess" style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                    <Button text="Remove Selected" onAction="#removeSelectedProcess" style="-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button text="START SIMULATION" onAction="#startSimulator" style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;"/>
+                </HBox>
+            </VBox>
+        </TitledPane>
+
+        <TitledPane text="Visualization" collapsible="false" style="-fx-font-weight: bold;" VBox.vgrow="ALWAYS">
+    <VBox VBox.vgrow="ALWAYS">
+        <HBox alignment="CENTER_LEFT">
+            <Label fx:id="timeLabel" text="Time: 0s" style="-fx-font-size: 16px; -fx-font-weight: bold;">
+                <padding>
+                    <Insets left="5" bottom="10"/>
+                </padding>
+            </Label>
         </HBox>
 
-        <!-- PROCESS INPUT SECTION -->
-        <Label text="Processes (Enter before starting):" style="-fx-font-weight: bold; -fx-font-size: 16;" />
+        <!-- Visualization -->
+        <VBox spacing="15" VBox.vgrow="ALWAYS">
+            <!-- Memory Visualization -->
+            <VBox spacing="10" VBox.vgrow="ALWAYS">
+                <Label text="Memory Visualization" style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
+                <ScrollPane fx:id="memoryScrollPane" fitToWidth="true" hbarPolicy="ALWAYS" vbarPolicy="ALWAYS"
+                            style="-fx-background: #FFFFFF; -fx-border-color: #ccc;"
+                            VBox.vgrow="ALWAYS">
+                    <HBox fx:id="memoryDisplay" spacing="0" prefHeight="120" style="-fx-background-color: #FFFFFF;">
+                        <padding>
+                            <Insets top="2" bottom="2" left="2" right="2"/>
+                        </padding>
+                    </HBox>
+                </ScrollPane>
+            </VBox>
 
-        <TableView fx:id="processTable" prefHeight="200" editable="true">
-            <columns>
-                <TableColumn text="PID" fx:id="pidCol" prefWidth="80"/>
-                <TableColumn text="Size" fx:id="sizeCol" prefWidth="120"/>
-                <TableColumn text="Burst Time" fx:id="burstCol" prefWidth="120"/>
-                <TableColumn text="Arrival Time" fx:id="arrivalCol" prefWidth="120"/>
-            </columns>
-        </TableView>
+            <!-- Free List and Ready Queue side-by-side, smaller -->
+            <HBox spacing="20" VBox.vgrow="NEVER">
+                <!-- Free List -->
+                <VBox spacing="10" prefWidth="300">
+                    <Label text="Free List" style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
+                    <TableView fx:id="freeListTable" prefHeight="200">
+                        <columns>
+                            <TableColumn text="Start" fx:id="startAddressCol" prefWidth="80"/>
+                            <TableColumn text="End" fx:id="endAddressCol" prefWidth="80"/>
+                            <TableColumn text="Size (K)" fx:id="freeSizeCol" prefWidth="80"/>
+                        </columns>
+                        <columnResizePolicy>
+                            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+                        </columnResizePolicy>
+                    </TableView>
+                </VBox>
 
-        <HBox spacing="10">
-            <Button text="Add Process" onAction="#addProcess"/>
-            <Button text="Remove Selected" onAction="#removeSelectedProcess"/>
-            <Button text="Start Simulation" onAction="#startSimulator"/>
-        </HBox>
+                <!-- Ready Queue -->
+                <VBox spacing="10" prefWidth="250">
+                    <Label text="Ready Queue" style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
+                    <TableView fx:id="readyQueueTable" prefHeight="200">
+                        <columns>
+                            <TableColumn text="PID" fx:id="readyPidCol" prefWidth="60"/>
+                            <TableColumn text="Size (K)" fx:id="readySizeCol" prefWidth="100"/>
+                        </columns>
+                        <columnResizePolicy>
+                            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+                        </columnResizePolicy>
+                    </TableView>
+                </VBox>
+            </HBox>
+        </VBox>
+    </VBox>
+</TitledPane>
 
-        <!-- SIMULATION VISUALIZATION SECTION -->
-        <Label text="Memory Visualization:" style="-fx-font-weight: bold; -fx-font-size: 16;" />
-        <ScrollPane fitToWidth="true" prefHeight="150">
-            <HBox fx:id="memoryDisplay" spacing="2" />
-        </ScrollPane>
 
-        <Label text="Free List:" style="-fx-font-weight: bold; -fx-font-size: 16;" />
-        <TableView fx:id="freeListTable" prefHeight="200">
-            <columns>
-                <TableColumn text="Start Address" fx:id="startAddressCol" prefWidth="150"/>
-                <TableColumn text="End Address" fx:id="endAddressCol" prefWidth="150"/>
-                <TableColumn text="Size" fx:id="freeSizeCol" prefWidth="100"/>
-            </columns>
-        </TableView>
-
-        <Label fx:id="timeLabel" text="Time: 0s" style="-fx-font-size: 14;"/>
     </VBox>
 </AnchorPane>
