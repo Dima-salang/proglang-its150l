@@ -1,16 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.layout.VBox?>
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox alignment="CENTER" spacing="20.0" xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.grp3project.PrimaryController">
-   <children>
-      <Label text="Primary View" />
-      <Button fx:id="primaryButton" text="Switch to Secondary View" onAction="#switchToSecondary"/>
-   </children>
-   <padding>
-      <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
-   </padding>
-</VBox>
+<AnchorPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.grp3project.SimulatorController"
+            prefWidth="950" prefHeight="700">
+
+    <VBox spacing="15" layoutX="20" layoutY="20" prefWidth="900">
+        
+        <!-- SETTINGS SECTION -->
+        <HBox spacing="10">
+            <Label text="Memory Size:" />
+            <TextField fx:id="memorySize" promptText="e.g., 1024" prefWidth="80" />
+            
+            <Label text="Coalesce Interval:" />
+            <TextField fx:id="coalesceInterval" promptText="seconds" prefWidth="80" />
+            
+            <Label text="Compaction Interval:" />
+            <TextField fx:id="compactionInterval" promptText="seconds" prefWidth="80" />
+        </HBox>
+
+        <!-- PROCESS INPUT SECTION -->
+        <Label text="Processes (Enter before starting):" style="-fx-font-weight: bold; -fx-font-size: 16;" />
+
+        <TableView fx:id="processTable" prefHeight="200" editable="true">
+            <columns>
+                <TableColumn text="PID" fx:id="pidCol" prefWidth="80"/>
+                <TableColumn text="Size" fx:id="sizeCol" prefWidth="120"/>
+                <TableColumn text="Burst Time" fx:id="burstCol" prefWidth="120"/>
+                <TableColumn text="Arrival Time" fx:id="arrivalCol" prefWidth="120"/>
+            </columns>
+        </TableView>
+
+        <HBox spacing="10">
+            <Button text="Add Process" onAction="#addProcess"/>
+            <Button text="Remove Selected" onAction="#removeSelectedProcess"/>
+            <Button text="Start Simulation" onAction="#startSimulator"/>
+        </HBox>
+
+        <!-- SIMULATION VISUALIZATION SECTION -->
+        <Label text="Memory Visualization:" style="-fx-font-weight: bold; -fx-font-size: 16;" />
+        <ScrollPane fitToWidth="true" prefHeight="150">
+            <HBox fx:id="memoryDisplay" spacing="2" />
+        </ScrollPane>
+
+        <Label text="Free List:" style="-fx-font-weight: bold; -fx-font-size: 16;" />
+        <TableView fx:id="freeListTable" prefHeight="200">
+            <columns>
+                <TableColumn text="Start Address" fx:id="startAddressCol" prefWidth="150"/>
+                <TableColumn text="End Address" fx:id="endAddressCol" prefWidth="150"/>
+                <TableColumn text="Size" fx:id="freeSizeCol" prefWidth="100"/>
+            </columns>
+        </TableView>
+
+        <Label fx:id="timeLabel" text="Time: 0s" style="-fx-font-size: 14;"/>
+    </VBox>
+</AnchorPane>

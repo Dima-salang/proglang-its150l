@@ -36,18 +36,19 @@ public class Memory {
         return freeList;
     }
 
-    public void addProcess(Process process) {
+    public boolean addProcess(Process process) {
         if (freeMemory < process.getSize()) {
-            throw new RuntimeException("Not enough memory");
+            return false;
         }
         FreeBlock freeBlock = freeList.getFirstFit(process.getSize());
         if (freeBlock == null) {
-            throw new RuntimeException("Not enough memory");
+            return false;
         }
         process.setStartAddress(freeBlock.getStartAddress());
         process.setEndAddress(freeBlock.getEndAddress());
         memArray.add(process);
         freeMemory -= process.getSize();
+        return true;
     }
 
     public void removeProcess(Process process) {
@@ -65,5 +66,9 @@ public class Memory {
             prevEndAddress = process.getEndAddress();
         }
         freeList.compaction(prevEndAddress);
+    }
+
+    public void coalesce() {
+        freeList.coalesceFreeList();
     }
 }

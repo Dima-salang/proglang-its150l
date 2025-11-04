@@ -9,6 +9,7 @@ public class FreeList {
     public FreeList(int size) {
         this.size = size;
         this.freeList = new ArrayList<FreeBlock>();
+        this.freeList.add(new FreeBlock(0, size));
     }
 
     public int getSize() {
