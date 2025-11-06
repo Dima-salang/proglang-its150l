@@ -19,7 +19,7 @@
             </VBox.margin>
         </Label>
 
-        <TitledPane text="Settings" collapsible="false" style="-fx-font-weight: bold;">
+        <TitledPane fx:id="settingsPane" text="Settings" collapsible="false" style="-fx-font-weight: bold;">
             <VBox spacing="10" style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 5;">
                 <padding>
                     <Insets top="15" right="20" bottom="15" left="20"/>
@@ -37,7 +37,7 @@
             </VBox>
         </TitledPane>
 
-        <TitledPane text="Processes" collapsible="false" style="-fx-font-weight: bold;">
+        <TitledPane fx:id="processPane" text="Processes" collapsible="false" style="-fx-font-weight: bold;">
             <VBox spacing="10" style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 5;">
                 <padding>
                     <Insets top="15" right="20" bottom="15" left="20"/>
@@ -59,7 +59,9 @@
                     <Button text="Add Process" onAction="#addProcess" style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
                     <Button text="Remove Selected" onAction="#removeSelectedProcess" style="-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold;"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <Button text="START SIMULATION" onAction="#startSimulator" style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;"/>
+                    
+                    <Button fx:id="stopButton" text="Stop" onAction="#onStop" style="-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;" disable="true"/>
+                    <Button fx:id="startButton" text="START SIMULATION" onAction="#startSimulator" style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;"/>
                 </HBox>
             </VBox>
         </TitledPane>
@@ -74,9 +76,7 @@
             </Label>
         </HBox>
 
-        <!-- Visualization -->
         <VBox spacing="15" VBox.vgrow="ALWAYS">
-            <!-- Memory Visualization -->
             <VBox spacing="10" VBox.vgrow="ALWAYS">
                 <Label text="Memory Visualization" style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
                 <ScrollPane fx:id="memoryScrollPane" fitToWidth="true" hbarPolicy="ALWAYS" vbarPolicy="ALWAYS"
@@ -88,11 +88,10 @@
                         </padding>
                     </HBox>
                 </ScrollPane>
+                <Pane fx:id="memoryRuler" prefHeight="35" style="-fx-background-color: #f9f9f9; -fx-border-color: #eee;"/>
             </VBox>
 
-            <!-- Free List and Ready Queue side-by-side, smaller -->
             <HBox spacing="20" VBox.vgrow="NEVER">
-                <!-- Free List -->
                 <VBox spacing="10" prefWidth="300">
                     <Label text="Free List" style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
                     <TableView fx:id="freeListTable" prefHeight="200">
@@ -107,7 +106,6 @@
                     </TableView>
                 </VBox>
 
-                <!-- Ready Queue -->
                 <VBox spacing="10" prefWidth="250">
                     <Label text="Ready Queue" style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
                     <TableView fx:id="readyQueueTable" prefHeight="200">
@@ -124,7 +122,5 @@
         </VBox>
     </VBox>
 </TitledPane>
-
-
     </VBox>
 </AnchorPane>

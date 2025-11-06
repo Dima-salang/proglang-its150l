@@ -7,18 +7,16 @@ import java.util.List;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
-import javafx.scene.control.TextField;
-import javafx.scene.control.Tooltip;
+import javafx.scene.control.*;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
@@ -31,12 +29,20 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Line;
+import javafx.scene.text.Text;
 import javafx.util.Duration;
 import javafx.util.converter.IntegerStringConverter;
 
 public class SimulatorController {
 
     private int seqArrivalTime = 0;
+
+    @FXML private TitledPane settingsPane;
+    @FXML private TitledPane processPane;
+
+    @FXML private Button startButton;
+    @FXML private Button stopButton;
 
     @FXML private TextField memorySize;
     @FXML private TextField coalesceInterval;
@@ -112,7 +118,7 @@ public class SimulatorController {
     @FXML
     private void startSimulator() {
         if (processList.isEmpty()) {
-            new Alert(Alert.AlertType.WARNING, "Please add at least one process!").showAndWait();
+            new Alert(AlertType.WARNING, "Please add at least one process!").showAndWait();
             return;
         }
 
@@ -120,6 +126,9 @@ public class SimulatorController {
             int memSize = Integer.parseInt(memorySize.getText());
             int coalesceInt = Integer.parseInt(coalesceInterval.getText());
             int compactInt = Integer.parseInt(compactionInterval.getText());
+
+            // reset processes to initial state
+            processList.forEach(Process::reset);
 
             processColors.clear();
             for (int i = 0; i < processList.size(); i++) {
@@ -131,15 +140,116 @@ public class SimulatorController {
 
             simulator = new Simulator(memSize, coalesceInt, compactInt);
             simulator.getProcessList().addAll(processList);
+
+            // listen for simulation to finish on its own
+            simulator.runningProperty().addListener((obs, wasRunning, isNowRunning) -> {
+                if (!isNowRunning && wasRunning) {
+                    Platform.runLater(() -> {
+                        if (uiUpdater != null) {
+                            uiUpdater.stop();
+                        }
+                        showStatisticsWindow(simulator.getFinishedProcesses());
+                        resetSimulationUI();
+                    });
+                }
+            });
+
             simulator.run();
 
             uiUpdater = new Timeline(new KeyFrame(Duration.millis(500), e -> refreshUI()));
             uiUpdater.setCycleCount(Timeline.INDEFINITE);
             uiUpdater.play();
 
+            setUIState(true); // set UI to "running" state
+
         } catch (NumberFormatException e) {
-            new Alert(Alert.AlertType.ERROR, "Please fill all settings with valid numbers.").showAndWait();
+            new Alert(AlertType.ERROR, "Please fill all settings with valid numbers.").showAndWait();
         }
+    }
+
+    @FXML
+    private void onStop() {
+        if (simulator == null) return;
+        simulator.stopSimulator();
+    }
+
+    private void resetSimulationUI() {
+        setUIState(false);
+        
+        // clear all simulation-specific UI elements
+        timeLabel.setText("Time: 0s");
+        memoryDisplay.getChildren().clear();
+        memoryRuler.getChildren().clear();
+        freeListTable.getItems().clear();
+        readyQueueTable.getItems().clear();
+        
+        simulator = null;
+        if (uiUpdater != null) {
+            uiUpdater.stop();
+            uiUpdater = null;
+        }
+    }
+
+    private void setUIState(boolean isRunning) {
+        // disable settings while running
+        settingsPane.setDisable(isRunning);
+        processPane.setDisable(false);
+        
+        // toggle run-control buttons
+        startButton.setDisable(isRunning);
+        stopButton.setDisable(!isRunning);
+    }
+
+    private void showStatisticsWindow(ArrayList<Process> finishedProcesses) {
+        if (finishedProcesses == null || finishedProcesses.isEmpty()) {
+
+            int totalProcesses = (simulator != null) ? simulator.getProcessList().size() : processList.size();
+            if (totalProcesses > 0) {
+                 new Alert(AlertType.INFORMATION, "Simulation stopped before any processes could finish.").show();
+            } else {
+                 new Alert(AlertType.INFORMATION, "Simulation stopped. No processes were run.").show();
+            }
+            return;
+        }
+        
+        Alert alert = new Alert(AlertType.INFORMATION);
+        alert.setTitle("Simulation Statistics");
+        alert.setHeaderText("Simulation Finished!");
+
+        TableView<Process> statsTable = new TableView<>();
+        statsTable.setItems(FXCollections.observableArrayList(finishedProcesses));
+
+        TableColumn<Process, String> pidCol = new TableColumn<>("PID");
+        pidCol.setCellValueFactory(cell -> new SimpleStringProperty("P" + cell.getValue().getPid()));
+
+        TableColumn<Process, Integer> turnaroundCol = new TableColumn<>("Turnaround Time");
+        turnaroundCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getTurnaroundTime()).asObject());
+
+        TableColumn<Process, Integer> waitingCol = new TableColumn<>("Waiting Time");
+        waitingCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getWaitingTime()).asObject());
+
+        TableColumn<Process, Integer> responseCol = new TableColumn<>("Response Time");
+        responseCol.setCellValueFactory(cell -> new SimpleIntegerProperty(cell.getValue().getResponseTime()).asObject());
+        
+        statsTable.getColumns().addAll(pidCol, turnaroundCol, waitingCol, responseCol);
+        statsTable.setPrefHeight(250);
+        statsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        // calculate the averages
+        double avgTurnaround = finishedProcesses.stream().mapToInt(Process::getTurnaroundTime).average().orElse(0);
+        double avgWaiting = finishedProcesses.stream().mapToInt(Process::getWaitingTime).average().orElse(0);
+        
+        Label averages = new Label(String.format("Average Turnaround Time: %.2f\nAverage Waiting Time: %.2f", avgTurnaround, avgWaiting));
+        averages.setPadding(new Insets(10));
+
+        VBox content = new VBox(10, statsTable, averages);
+        
+        // put it in the dialog pane for showing the stats
+        DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.setContent(content);
+        dialogPane.setPrefWidth(500);
+
+        alert.showAndWait();
     }
 
     private void refreshUI() {
@@ -151,12 +261,19 @@ public class SimulatorController {
         readyQueueTable.setItems(FXCollections.observableArrayList(simulator.getReadyQueue()));
         
 
-        // we update the ui from the state of the controller
+        // update the ui from the state of the controller
         updateMemoryVisuals();
     }
 
     private void updateMemoryVisuals() {
+        if (simulator == null) {
+            memoryDisplay.getChildren().clear();
+            memoryRuler.getChildren().clear();
+            return;
+        }
+        
         memoryDisplay.getChildren().clear();
+        memoryRuler.getChildren().clear();
 
         int totalSize = simulator.getMemory().getSize();
         
@@ -190,6 +307,36 @@ public class SimulatorController {
         for (MemoryBlock block : blocks) {
             Pane blockPane = makeBlock(block, totalSize, visualWidth);
             memoryDisplay.getChildren().add(blockPane);
+        }
+
+        // --- Draw the ruler ---
+        int numTicks = 10; // 10 ticks on the ruler
+        if (totalSize < numTicks || numTicks <= 0) numTicks = Math.max(1, totalSize);
+
+        for (int i = 0; i <= numTicks; i++) {
+            int address = (int)Math.round(i * (double)totalSize / numTicks);
+            if (i == numTicks) address = totalSize; // Ensure last tick is exactly at the end
+
+            double xPos = (double) address / totalSize * visualWidth;
+            if (i == numTicks) xPos -= 1; // Scoot the last tick left a pixel
+            if (xPos < 0) xPos = 0;
+
+            Line tick = new Line(xPos, 5, xPos, 15);
+            tick.setStroke(Color.GRAY);
+
+            Text label = new Text(String.valueOf(address));
+            label.setX(xPos - (label.getLayoutBounds().getWidth() / 2)); // Center the text
+            label.setY(30);
+            label.setFill(Color.DARKGRAY);
+            
+            if (xPos + label.getLayoutBounds().getWidth() / 2 > visualWidth) {
+                 label.setX(visualWidth - label.getLayoutBounds().getWidth() - 1);
+            }
+            if(label.getX() < 0) {
+                label.setX(0);
+            }
+
+            memoryRuler.getChildren().addAll(tick, label);
         }
     }
 
