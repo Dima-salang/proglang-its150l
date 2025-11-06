@@ -37,25 +37,23 @@ public class Simulator {
 
         // we tick every second for the timer while there is still an unfinished process
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            // if all processes are finished, stop the simulator
             if (numOfFinishedProcesses >= processList.size()) {
                 stopSimulator();
                 return;
             }
             
+            // else, we proceed with the simulation
             updateRunningProcesses();
             checkFinishedProcesses(time);
             if (checkCoalesce(time)) {
-                System.out.println("Coalesced the Free List");
+                System.out.println("Coalesced the Free List at time " + time);
             }
             if (checkCompaction(time)) {
-                System.out.println("Compacted the Memory Array");
+                System.out.println("Compacted the Memory Array at time " + time);
             }
             checkArrival(time);
             checkReadyQueue();
-            System.out.println("Time: " + time);
-            printRunningProcesses();
-            printReadyQueue();
-            printFreeList();
             time++;
         }));
         timeline.setCycleCount(Timeline.INDEFINITE);
@@ -162,6 +160,7 @@ public class Simulator {
         running.set(false);
     }
 
+    // checks for the running variable which tracks whether the simulator is in the running state
     public boolean isRunning() {
         return running.get();
     }
