@@ -5,6 +5,9 @@ public class Process {
     private int size;
     private int burstTime;
     private int arrivalTime;
+    private int waitingTime;
+    private int turnaroundTime;
+    private int responseTime; 
     private int startAddress;
     private int endAddress;
     private int remainingTime;
@@ -18,6 +21,19 @@ public class Process {
         this.startAddress = -1;
         this.endAddress = -1;
         this.remainingTime = burstTime;
+        this.isFinished = false;
+        this.waitingTime = 0;
+        this.turnaroundTime = 0;
+        this.responseTime = 0;
+    }
+
+    public void reset() {
+        this.waitingTime = 0;
+        this.turnaroundTime = 0;
+        this.responseTime = 0;
+        this.startAddress = -1;
+        this.endAddress = -1;
+        this.remainingTime = this.burstTime;
         this.isFinished = false;
     }
 
@@ -35,6 +51,30 @@ public class Process {
 
     public int getArrivalTime() {
         return arrivalTime;
+    }
+
+    public int getWaitingTime() {
+        return waitingTime;
+    }
+
+    public int getTurnaroundTime() {
+        return turnaroundTime;
+    }
+
+    public int getResponseTime() {
+        return responseTime;
+    }
+
+    public void setWaitingTime(int waitingTime) {
+        this.waitingTime = waitingTime;
+    }
+
+    public void setTurnaroundTime(int turnaroundTime) {
+        this.turnaroundTime = turnaroundTime;
+    }
+
+    public void setResponseTime(int responseTime) {
+        this.responseTime = responseTime;
     }
 
     public void setArrivalTime(int arrivalTime) {

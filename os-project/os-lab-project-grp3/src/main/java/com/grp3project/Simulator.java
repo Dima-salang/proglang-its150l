@@ -5,28 +5,43 @@ import java.util.Iterator;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.util.Duration;
 
 public class Simulator {
     private Memory memory;
     private ArrayList<Process> processList;
+    private ArrayList<Process> finishedProcesses;
     private ArrayList<Process> readyQueue;
     private int time;
+    private int numOfFinishedProcesses;
     private Timeline timeline;
     private int coalesceInterval;
     private int compactionInterval;
 
+    private final BooleanProperty running = new SimpleBooleanProperty(false);
+
     public Simulator(int size, int coalesceInterval, int compactionInterval) {
         this.memory = new Memory(size);
         this.processList = new ArrayList<Process>();
+        this.finishedProcesses = new ArrayList<Process>();
         this.readyQueue = new ArrayList<Process>();
         this.coalesceInterval = coalesceInterval;
         this.compactionInterval = compactionInterval;
+        this.numOfFinishedProcesses = 0;
+        this.time = 0;
     }
 
     public void run() {
-        // we tick every second for the timer
+
+        // we tick every second for the timer while there is still an unfinished process
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            if (numOfFinishedProcesses >= processList.size()) {
+                stopSimulator();
+                return;
+            }
+            
             updateRunningProcesses();
             checkFinishedProcesses(time);
             if (checkCoalesce(time)) {
@@ -45,6 +60,7 @@ public class Simulator {
         }));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
+        running.set(true);
     }
 
     // we check for arriving processes
@@ -63,7 +79,15 @@ public class Simulator {
         for (Process process : memory.getMemArray()) {
             if (process.getRemainingTime() <= 0 && !process.isFinished()) {
                 process.setFinished(true);
+
+                // compute for process stats
+                process.setTurnaroundTime(time - process.getArrivalTime());
+                process.setResponseTime(process.getTurnaroundTime() - process.getBurstTime());
+                process.setWaitingTime(process.getTurnaroundTime() - process.getBurstTime());
+                finishedProcesses.add(process);
                 toRemove.add(process);
+
+                numOfFinishedProcesses++;
             }
         }
 
@@ -114,6 +138,38 @@ public class Simulator {
         return false;
     }
 
+    // pausing the simulator
+    public void pauseSimulator() {
+        if (timeline != null) {
+            timeline.pause();
+            running.set(false);
+        }
+    }
+
+    // resuming the simulator
+    public void resumeSimulator() {
+        if (timeline != null) {
+            timeline.play();
+            running.set(true);
+        }
+    }
+
+    // stopping the simulator
+    public void stopSimulator() {
+        if (timeline != null) {
+            timeline.stop();
+        }
+        running.set(false);
+    }
+
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    public BooleanProperty runningProperty() {
+        return running;
+    }
+
     // print functions just for debugging
     private void printRunningProcesses() {
         System.out.println("Running processes:");
@@ -151,5 +207,9 @@ public class Simulator {
 
     public ArrayList<Process> getReadyQueue() {
         return readyQueue;
+    }
+
+    public ArrayList<Process> getFinishedProcesses() {
+        return finishedProcesses;
     }
 }
