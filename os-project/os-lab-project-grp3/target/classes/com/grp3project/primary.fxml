@@ -88,7 +88,6 @@
                         </padding>
                     </HBox>
                 </ScrollPane>
-                <Pane fx:id="memoryRuler" prefHeight="35" style="-fx-background-color: #f9f9f9; -fx-border-color: #eee;"/>
             </VBox>
 
             <HBox spacing="20" VBox.vgrow="NEVER">

@@ -29,8 +29,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Line;
-import javafx.scene.text.Text;
 import javafx.util.Duration;
 import javafx.util.converter.IntegerStringConverter;
 
@@ -57,7 +55,6 @@ public class SimulatorController {
     @FXML private Label timeLabel;
     @FXML private ScrollPane memoryScrollPane;
     @FXML private HBox memoryDisplay;
-    @FXML private Pane memoryRuler;
     
     @FXML private TableView<FreeBlock> freeListTable;
     @FXML private TableColumn<FreeBlock, Integer> startAddressCol;
@@ -179,7 +176,6 @@ public class SimulatorController {
         // clear all simulation-specific UI elements
         timeLabel.setText("Time: 0s");
         memoryDisplay.getChildren().clear();
-        memoryRuler.getChildren().clear();
         freeListTable.getItems().clear();
         readyQueueTable.getItems().clear();
         
@@ -268,12 +264,10 @@ public class SimulatorController {
     private void updateMemoryVisuals() {
         if (simulator == null) {
             memoryDisplay.getChildren().clear();
-            memoryRuler.getChildren().clear();
             return;
         }
         
         memoryDisplay.getChildren().clear();
-        memoryRuler.getChildren().clear();
 
         int totalSize = simulator.getMemory().getSize();
         
@@ -307,36 +301,6 @@ public class SimulatorController {
         for (MemoryBlock block : blocks) {
             Pane blockPane = makeBlock(block, totalSize, visualWidth);
             memoryDisplay.getChildren().add(blockPane);
-        }
-
-        // --- Draw the ruler ---
-        int numTicks = 10; // 10 ticks on the ruler
-        if (totalSize < numTicks || numTicks <= 0) numTicks = Math.max(1, totalSize);
-
-        for (int i = 0; i <= numTicks; i++) {
-            int address = (int)Math.round(i * (double)totalSize / numTicks);
-            if (i == numTicks) address = totalSize; // Ensure last tick is exactly at the end
-
-            double xPos = (double) address / totalSize * visualWidth;
-            if (i == numTicks) xPos -= 1; // Scoot the last tick left a pixel
-            if (xPos < 0) xPos = 0;
-
-            Line tick = new Line(xPos, 5, xPos, 15);
-            tick.setStroke(Color.GRAY);
-
-            Text label = new Text(String.valueOf(address));
-            label.setX(xPos - (label.getLayoutBounds().getWidth() / 2)); // Center the text
-            label.setY(30);
-            label.setFill(Color.DARKGRAY);
-            
-            if (xPos + label.getLayoutBounds().getWidth() / 2 > visualWidth) {
-                 label.setX(visualWidth - label.getLayoutBounds().getWidth() - 1);
-            }
-            if(label.getX() < 0) {
-                label.setX(0);
-            }
-
-            memoryRuler.getChildren().addAll(tick, label);
         }
     }
 
