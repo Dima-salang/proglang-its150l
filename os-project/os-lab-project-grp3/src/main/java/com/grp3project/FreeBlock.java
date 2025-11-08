@@ -1,33 +1,33 @@
 package com.grp3project;
 
+import javafx.beans.property.SimpleIntegerProperty;
+
 public class FreeBlock {
-    private int startAddress;
-    private int endAddress;
-    private int size;
+    private SimpleIntegerProperty startAddress;
+    private SimpleIntegerProperty endAddress;
     
     public FreeBlock(int startAddress, int endAddress) {
-        this.startAddress = startAddress;
-        this.endAddress = endAddress;
-        this.size = endAddress - startAddress + 1;
+        this.startAddress = new SimpleIntegerProperty(startAddress);
+        this.endAddress = new SimpleIntegerProperty(endAddress);
     }
 
     public int getStartAddress() {
-        return startAddress;
+        return startAddress.get();
     }
 
     public int getEndAddress() {
-        return endAddress;
+        return endAddress.get();
     }
 
     public void setStartAddress(int startAddress) {
-        this.startAddress = startAddress;
+        this.startAddress.set(startAddress);
     }
 
     public void setEndAddress(int endAddress) {
-        this.endAddress = endAddress;
+        this.endAddress.set(endAddress);
     }
 
     public int getSize() {
-        return size;
+        return endAddress.get() - startAddress.get() + 1;
     }
 }

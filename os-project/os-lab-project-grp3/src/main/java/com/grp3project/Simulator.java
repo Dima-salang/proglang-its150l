@@ -55,6 +55,11 @@ public class Simulator {
             checkArrival(time);
             checkReadyQueue();
             time++;
+
+            // print free list
+            for (FreeBlock block : memory.getFreeList().getFreeList()) {
+                System.out.println(block.getStartAddress() + " - " + block.getEndAddress());
+            }
         }));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();

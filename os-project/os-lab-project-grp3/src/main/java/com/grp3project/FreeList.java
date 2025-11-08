@@ -72,7 +72,7 @@ public class FreeList {
         freeList.sort(java.util.Comparator.comparingInt(FreeBlock::getStartAddress));
 
 
-        // we use a two-window approach for coalescing
+        // we use a two-pointer approach for coalescing
         int left = 0;
         int right = 1;
         while (right < freeList.size()) {
